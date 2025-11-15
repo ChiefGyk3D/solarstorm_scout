@@ -54,7 +54,9 @@ MASTODON_ENABLED=false
 
 ### Step 3: Choose Installation Method
 
-#### Option A: Automated systemd Install (Recommended)
+#### Option A: Automated Installer (Recommended)
+
+The installer script supports both Python and Docker deployments:
 
 ```bash
 chmod +x scripts/install-solarstorm.sh
@@ -63,15 +65,18 @@ chmod +x scripts/install-solarstorm.sh
 
 Follow the prompts:
 - Set interval: Press Enter for 1.5 hours (default)
-- Deployment: Choose option 1 (venv) 
+- Choose timer type: Fixed schedule or relative timing
+- Deployment method: Choose Python (venv/system) or Docker (GHCR/local build)
 - Test post: Choose Y to verify it works
+
+> **Note:** If you choose Docker deployment, Docker must be installed on your system first.
 
 Done! 🎉
 
-#### Option B: Docker Install
+#### Option B: Manual Docker Install
 
 ```bash
-# Run with scheduler
+# Run with docker-compose scheduler
 docker-compose up -d
 
 # Check logs

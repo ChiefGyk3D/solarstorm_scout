@@ -83,7 +83,9 @@ Each update consists of 5 posts:
 - Linux system with systemd (for systemd installation)
 - Docker (for Docker installation)
 
-### Option 1: systemd Installation (Recommended for Linux servers)
+### Option 1: Automated Installation with Installer Script (Recommended)
+
+The installer script supports both Python and Docker deployments.
 
 1. **Clone the repository:**
    ```bash
@@ -105,10 +107,14 @@ Each update consists of 5 posts:
 
 4. **Follow prompts to:**
    - Set posting interval (default: 1.5 hours)
-   - Choose Python environment (venv recommended)
+   - Choose deployment method: Python (venv or system) or Docker (GHCR or local build)
    - Optionally run a test post
 
-### Option 2: Docker Installation
+> **Note:** The installer automatically handles Docker installation if you select Docker deployment. Docker must be installed on your system before running the installer.
+
+### Option 2: Manual Docker Installation
+
+For manual Docker deployment without the installer:
 
 1. **Pull from GitHub Container Registry:**
    ```bash
@@ -195,12 +201,17 @@ Each update consists of 5 posts:
 Instead of `.env` files, use Doppler:
 
 1. Create [Doppler](https://doppler.com) account
-2. Create project and add secrets
-3. Generate service token
-4. Set in environment:
+2. Create project (e.g., "solarstorm-scout") and add secrets
+3. Create config within the project (e.g., "dev", "prd")
+4. Generate service token
+5. Set in environment:
    ```env
    DOPPLER_TOKEN=your-service-token
+   DOPPLER_PROJECT=solarstorm-scout
+   DOPPLER_CONFIG=prd
    ```
+
+> **Note:** Both `DOPPLER_PROJECT` and `DOPPLER_CONFIG` environment variables are required when using Doppler secrets management.
 
 ## 🕐 Scheduling
 
@@ -276,19 +287,28 @@ solarstorm_scout/
 │   ├── chart_renderer.py # GOES X-ray chart generator
 │   └── demo.py          # Preview tool
 ├── scripts/
-│   ├── install-solarstorm.sh
-│   ├── create-secrets.sh
-│   ├── install-systemd.sh
-│   └── uninstall-systemd.sh
+│   ├── install-solarstorm.sh    # Automated installer (Python + Docker)
+│   └── uninstall-solarstorm.sh  # Uninstaller
+├── systemd/
+│   ├── solarstorm-scout.service.template  # systemd service template
+│   └── solarstorm-scout.timer.template    # systemd timer template
 ├── media/
 │   ├── banner.png       # README banner
 │   ├── logo.png         # Project logo
-│   └── streamelements.png # Donation image
+│   ├── aurora.png       # Example aurora post
+│   ├── band_conditions.png  # Example band conditions post
+│   ├── d-region.png     # Example D-region post
+│   ├── solar_indices.png    # Example solar indices post
+│   ├── x-ray.png        # Example X-ray post
+│   └── streamelements.png   # Donation image
 ├── .github/
 │   └── workflows/       # CI/CD pipelines
 ├── .env.example
 ├── requirements.txt
+├── pyproject.toml
 ├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.oneshot.yml
 ├── LICENSE
 └── README.md
 ```
