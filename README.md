@@ -18,6 +18,15 @@ Perfect for amateur radio operators, space weather enthusiasts, and anyone inter
 
 > **⚠️ Note**: Space weather conditions can change rapidly. Data represents conditions at post time. For real-time updates, visit [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov/).
 
+## 🔕 Content Filtering
+
+All posts include the **#SolarStormScout** hashtag. Since Bluesky and Mastodon don't currently provide options to control what appears in general/live feeds, users can filter out these automated posts by muting or blocking the hashtag:
+
+- **Bluesky**: Settings → Moderation → Muted words → Add "#SolarStormScout"
+- **Mastodon**: Preferences → Filters → Add filter for "#SolarStormScout"
+
+This allows users who prefer not to see automated space weather updates to opt out while still allowing those interested to follow the account directly.
+
 ## 🎯 Features
 
 - ✅ **Dual Platform Support**: Post to Bluesky and/or Mastodon
