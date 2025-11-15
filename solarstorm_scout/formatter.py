@@ -132,7 +132,7 @@ D-Layer: {abs_pct}
 📊 NOAA Scales
 📻R{r_scale} Radio Blackout
 ☢️S{s_scale} Radiation Storm
-🌍G{g_scale} Geomagnetic Storm
+🧲G{g_scale} Geomagnetic Storm
 
 #SpaceWeather #HamRadio #Radio"""
     
