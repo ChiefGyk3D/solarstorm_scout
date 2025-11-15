@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 LABEL maintainer="SolarStorm Scout Team"
 LABEL description="Space Weather Social Media Bot - Posts HF propagation updates"
