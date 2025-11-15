@@ -130,7 +130,9 @@ MUF (DX): {muf} MHz
 D-Layer: {abs_pct}
 
 📊 NOAA Scales
-R{r_scale} S{s_scale} G{g_scale}
+📻R{r_scale} Radio Blackout
+☢️S{s_scale} Radiation Storm
+🌍G{g_scale} Geomagnetic Storm
 
 #SpaceWeather #HamRadio #Radio"""
     
