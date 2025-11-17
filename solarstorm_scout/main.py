@@ -25,19 +25,29 @@ from solarstorm_scout.social import SocialMediaManager
 
 logger = logging.getLogger(__name__)
 
-# Anti-spam protection
+# Anti-spam protection and tracking
 # Works in both Docker (/app/logs) and local install (project_dir/logs)
-def get_last_run_file() -> Path:
-    """Get path to last run tracking file, works in Docker and local."""
+def get_tracking_dir() -> Path:
+    """Get path to tracking directory, works in Docker and local."""
     # Check if running in Docker
     docker_logs = Path("/app/logs")
     if docker_logs.exists() and docker_logs.is_dir():
-        return docker_logs / ".last_run"
+        return docker_logs
     # Local installation
-    return Path(__file__).parent.parent / "logs" / ".last_run"
+    return Path(__file__).parent.parent / "logs"
+
+def get_last_run_file() -> Path:
+    """Get path to last run tracking file."""
+    return get_tracking_dir() / ".last_run"
+
+def get_last_hamradio_file() -> Path:
+    """Get path to last #HamRadio usage tracking file."""
+    return get_tracking_dir() / ".last_hamradio"
 
 LAST_RUN_FILE = get_last_run_file()
+LAST_HAMRADIO_FILE = get_last_hamradio_file()
 MIN_INTERVAL_MINUTES = 30  # Minimum 30 minutes between posts
+HAMRADIO_INTERVAL_HOURS = 24  # Only use #HamRadio once per day
 
 
 def check_rate_limit() -> bool:
@@ -75,6 +85,42 @@ def record_run_time():
         LAST_RUN_FILE.write_text(str(time.time()))
     except Exception as e:
         logger.warning(f"Could not record run time: {e}")
+
+
+def should_include_hamradio() -> bool:
+    """
+    Check if #HamRadio hashtag should be included in this post.
+    Only includes it once per 24 hours.
+    
+    Returns:
+        True if #HamRadio should be included, False otherwise
+    """
+    if not LAST_HAMRADIO_FILE.exists():
+        return True
+    
+    try:
+        last_hamradio_time = float(LAST_HAMRADIO_FILE.read_text().strip())
+        time_since_last = time.time() - last_hamradio_time
+        hours_since_last = time_since_last / 3600
+        
+        if hours_since_last >= HAMRADIO_INTERVAL_HOURS:
+            return True
+        else:
+            logger.info(f"ℹ️  #HamRadio last used {hours_since_last:.1f} hours ago (limit: {HAMRADIO_INTERVAL_HOURS}h)")
+            return False
+    except Exception as e:
+        logger.warning(f"Could not read last #HamRadio time: {e}. Including #HamRadio...")
+        return True
+
+
+def record_hamradio_usage():
+    """Record current timestamp for #HamRadio usage."""
+    try:
+        LAST_HAMRADIO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_HAMRADIO_FILE.write_text(str(time.time()))
+        logger.info("✓ Recorded #HamRadio usage timestamp")
+    except Exception as e:
+        logger.warning(f"Could not record #HamRadio usage time: {e}")
 
 
 async def main():
@@ -156,10 +202,17 @@ async def main():
         logger.error(f"Failed to fetch space weather data: {e}")
         sys.exit(1)
     
+    # Check if we should include #HamRadio hashtag
+    include_hamradio = should_include_hamradio()
+    if include_hamradio:
+        logger.info("✓ Including #HamRadio hashtag in this thread")
+    else:
+        logger.info("ℹ️  Skipping #HamRadio hashtag (used recently)")
+    
     # Format posts (we'll post to each platform separately with platform-specific formatting)
     logger.info("Posting to social media...")
     try:
-        results = await social.post_to_all(data)
+        results = await social.post_to_all(data, include_hamradio=include_hamradio)
         
         # Log results
         success_count = sum(1 for v in results.values() if v)
@@ -177,6 +230,10 @@ async def main():
         
         # Record successful post time to prevent spam
         record_run_time()
+        
+        # Record #HamRadio usage if it was included
+        if include_hamradio:
+            record_hamradio_usage()
         
     except Exception as e:
         logger.error(f"Failed to post to social media: {e}")

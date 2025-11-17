@@ -338,13 +338,14 @@ class SocialMediaManager:
             return True
         return False
     
-    async def post_to_all(self, data: Dict, session: Optional[aiohttp.ClientSession] = None) -> dict:
+    async def post_to_all(self, data: Dict, session: Optional[aiohttp.ClientSession] = None, include_hamradio: bool = True) -> dict:
         """
         Post thread to all configured platforms.
         
         Args:
             data: Space weather data dict
             session: Optional aiohttp session
+            include_hamradio: Whether to include #HamRadio hashtag
         
         Returns:
             Dict with platform names as keys and success status as values
@@ -355,7 +356,7 @@ class SocialMediaManager:
             try:
                 # Format posts for this platform
                 platform = 'bluesky' if platform_name == 'Bluesky' else 'mastodon'
-                posts = format_thread_posts(data, platform)
+                posts = format_thread_posts(data, platform, include_hamradio)
                 
                 success = await poster.post_thread(posts, session)
                 results[platform_name] = success

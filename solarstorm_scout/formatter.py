@@ -41,7 +41,7 @@ def ensure_char_limit(text: str, limit: int) -> str:
     return text
 
 
-def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
+def format_thread_posts(data: Dict, platform: str = 'bluesky', include_hamradio: bool = True) -> List[Dict]:
     """
     Format space weather data into a thread of posts.
     
@@ -55,6 +55,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     Args:
         data: Space weather data dictionary from spaceweather.fetch_space_weather_data()
         platform: 'bluesky' (300 chars) or 'mastodon' (500 chars)
+        include_hamradio: Whether to include #HamRadio hashtag (limited to once per day)
     
     Returns:
         List of dicts with 'text', 'image_url', and 'alt_text' keys
@@ -63,7 +64,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     posts = []
     
     # Post 1: Solar Indices + NOAA Scales
-    post1 = format_solar_indices_post(data, char_limit)
+    post1 = format_solar_indices_post(data, char_limit, include_hamradio)
     posts.append({
         'text': post1,
         'image_url': None,
@@ -71,7 +72,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     })
     
     # Post 2: Band Conditions
-    post2 = format_band_conditions_post(data, char_limit)
+    post2 = format_band_conditions_post(data, char_limit, include_hamradio)
     posts.append({
         'text': post2,
         'image_url': None,
@@ -79,7 +80,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     })
     
     # Post 3: D-Region Absorption (with D-RAP map)
-    post3 = format_absorption_post(data, char_limit)
+    post3 = format_absorption_post(data, char_limit, include_hamradio)
     posts.append({
         'text': post3,
         'image_url': DRAP_IMAGE_URL,
@@ -87,7 +88,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     })
     
     # Post 4: Aurora Forecast (with aurora oval)
-    post4 = format_aurora_post(data, char_limit)
+    post4 = format_aurora_post(data, char_limit, include_hamradio)
     posts.append({
         'text': post4,
         'image_url': AURORA_IMAGE_URL,
@@ -95,7 +96,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     })
     
     # Post 5: GOES X-Ray Flux (with generated chart)
-    post5 = format_xray_post(data, char_limit)
+    post5 = format_xray_post(data, char_limit, include_hamradio)
     posts.append({
         'text': post5,
         'image_url': 'GENERATE_CHART',  # Special marker to generate chart
@@ -105,7 +106,7 @@ def format_thread_posts(data: Dict, platform: str = 'bluesky') -> List[Dict]:
     return posts
 
 
-def format_solar_indices_post(data: Dict, char_limit: int) -> str:
+def format_solar_indices_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
     """Format Post 1: Solar Indices + NOAA Scales."""
     sfi = data.get('solar_flux', 'N/A')
     a_idx = data.get('a_index', 'N/A')
@@ -119,6 +120,11 @@ def format_solar_indices_post(data: Dict, char_limit: int) -> str:
     
     # Format absorption percentage
     abs_pct = f"{int(absorption * 100)}%" if isinstance(absorption, float) else "N/A"
+    
+    # Build hashtags
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
     
     post = f"""☀️ SOLAR INDICES (1/5)
 
@@ -134,12 +140,12 @@ D-Layer: {abs_pct}
 ☢️S{s_scale} Radiation Storm
 🧲G{g_scale} Geomagnetic Storm
 
-#SolarStormScout #HamRadio"""
+{hashtags}"""
     
     return ensure_char_limit(post, char_limit)
 
 
-def format_band_conditions_post(data: Dict, char_limit: int) -> str:
+def format_band_conditions_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
     """Format Post 2: Band Conditions."""
     bands = data.get('band_conditions', {})
     best_now = data.get('best_bands_now', 'N/A')
@@ -160,6 +166,11 @@ def format_band_conditions_post(data: Dict, char_limit: int) -> str:
     else:  # Mastodon - can fit more
         bands_text = "\n".join(band_lines)
     
+    # Build hashtags
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
+    
     post = f"""📻 BAND CONDITIONS (2/5)
 
 {bands_text}
@@ -168,12 +179,12 @@ def format_band_conditions_post(data: Dict, char_limit: int) -> str:
 
 Based on MUF={muf}MHz
 
-#SolarStormScout #HamRadio"""
+{hashtags}"""
     
     return ensure_char_limit(post, char_limit)
 
 
-def format_absorption_post(data: Dict, char_limit: int) -> str:
+def format_absorption_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
     """Format Post 3: D-Region Absorption."""
     absorption = data.get('d_region_absorption', 'N/A')
     
@@ -203,6 +214,11 @@ def format_absorption_post(data: Dict, char_limit: int) -> str:
     else:  # Mastodon - more detail
         helper = "Real-time HF absorption from solar X-rays\n🔴Red=High (HF challenging) 🟡Yellow=Moderate 🟢Green/Blue=Low (HF good)\nHigher absorption = lower frequencies work better"
     
+    # Build hashtags
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
+    
     post = f"""📡 D-REGION ABSORPTION (3/5)
 {absorption}
 
@@ -211,13 +227,13 @@ def format_absorption_post(data: Dict, char_limit: int) -> str:
 
 {helper}
 
-#SolarStormScout #HamRadio"""
+{hashtags}"""
     
     return ensure_char_limit(post, char_limit)
 
 
-def format_aurora_post(data: Dict, char_limit: int) -> str:
-    """Format Post 3: Aurora Forecast."""
+def format_aurora_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
+    """Format Post 4: Aurora Forecast."""
     aurora_power = data.get('aurora_power', 'N/A')
     k_idx = data.get('k_index', 'N/A')
     
@@ -252,6 +268,11 @@ def format_aurora_post(data: Dict, char_limit: int) -> str:
     else:  # Mastodon
         helper = "🟢Green=2m/6m scatter possible 🟡Yellow=Enhanced 🔴Red=Intense aurora\nPoint antennas north, use SSB/CW modes. Best during K≥4 activity."
     
+    # Build hashtags
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
+    
     post = f"""🌌 AURORA FORECAST (4/5)
 {aurora_desc}
 
@@ -263,13 +284,13 @@ K-index: {k_idx}
 
 {helper}
 
-#SolarStormScout #HamRadio"""
+{hashtags}"""
     
     return ensure_char_limit(post, char_limit)
 
 
-def format_xray_post(data: Dict, char_limit: int) -> str:
-    """Format Post 4: GOES X-Ray Flux."""
+def format_xray_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
+    """Format Post 5: GOES X-Ray Flux."""
     xray_class = data.get('xray_class', 'N/A')
     
     # Impact assessment
@@ -300,6 +321,11 @@ def format_xray_post(data: Dict, char_limit: int) -> str:
     else:  # Mastodon
         helper = "Flare Classes: X=Major (HF blackouts) M=Medium (regional HF degradation) C=Minor (slight absorption) B=Weak (normal)\nRed line=0.1-0.8nm Cyan=0.05-0.4nm. Spikes=flares causing radio blackouts. Higher flux=worse HF."
     
+    # Build hashtags
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
+    
     post = f"""☀️ X-RAY FLUX (5/5)
 Past 6hr
 
@@ -312,7 +338,7 @@ Current: {xray_class}
 
 NOAA SWPC {now.strftime('%H:%M')}Z
 
-#SolarStormScout #HamRadio"""
+{hashtags}"""
     
     return ensure_char_limit(post, char_limit)
 
