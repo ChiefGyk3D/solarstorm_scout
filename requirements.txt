@@ -3,7 +3,7 @@
 
 # Core dependencies
 aiohttp==3.13.2
-atproto==0.0.63
+atproto==0.0.64
 Mastodon.py==2.1.4
 python-dotenv==1.2.1
 matplotlib==3.10.7
