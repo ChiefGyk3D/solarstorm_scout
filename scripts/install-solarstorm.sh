@@ -311,6 +311,7 @@ Type=oneshot
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
+ExecStartPre=-/usr/bin/docker rm -f solarstorm-scout
 ExecStart=$EXEC_START
 # No ExecStop needed - --rm flag auto-removes container when it exits
 StandardOutput=append:$PROJECT_DIR/logs/solarstorm.log
