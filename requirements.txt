@@ -2,8 +2,8 @@
 # Python 3.11+ (numpy 2.3+ requires Python 3.11)
 
 # Core dependencies
-aiohttp==3.13.2
-atproto==0.0.63
+aiohttp==3.13.3
+atproto==0.0.65
 Mastodon.py==2.1.4
 python-dotenv==1.2.1
 matplotlib==3.10.7
