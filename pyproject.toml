@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 doppler = ["dopplersdk>=1.0.0"]
-dev = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0", "black>=23.0.0", "flake8>=6.0.0"]
+dev = ["pytest>=7.4.4", "pytest-asyncio>=0.21.0", "black>=23.0.0", "flake8>=6.0.0"]
 
 [project.scripts]
 solarstorm_scout = "solarstorm_scout.main:main"
