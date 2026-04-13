@@ -30,7 +30,7 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.9.0",
     "atproto>=0.0.40",
-    "Mastodon.py>=1.8.0",
+    "Mastodon.py>=2.2.1",
     "python-dotenv>=1.0.0",
 ]
 
