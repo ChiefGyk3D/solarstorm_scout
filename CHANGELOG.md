@@ -5,6 +5,24 @@ All notable changes to SolarStorm Scout will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Bumped `aiohttp` 3.13.3 → 3.14.3. The pin sat below 3.13.4, which carried a
+  security fix Dependabot had been flagging since April.
+
+### Changed
+- Bumped `atproto` 0.0.65 → 0.0.72, `Mastodon.py` 2.1.4 → 2.2.2,
+  `python-dotenv` 1.2.1 → 1.2.3, `matplotlib` 3.10.7 → 3.11.2 and
+  `numpy` 2.3.4 → 2.4.6.
+
+### Fixed
+- CI's lint job ran `ruff check penguin-overlord/` and
+  `bandit -r penguin-overlord/` — a directory that does not exist in this
+  repository, copy-pasted from the sibling project. Both steps are wrapped in
+  `continue-on-error`, so the job reported success while linting and
+  security-scanning nothing at all. Now pointed at `solarstorm_scout/`.
+
 ## [1.0.0] - 2024-11-14
 
 ### Added
