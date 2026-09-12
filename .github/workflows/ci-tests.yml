@@ -100,12 +100,12 @@ jobs:
 
     - name: Lint with Ruff
       run: |
-        ruff check penguin-overlord/ --output-format=github
+        ruff check solarstorm_scout/ --output-format=github
       continue-on-error: true
 
     - name: Security check with Bandit
       run: |
-        bandit -r penguin-overlord/ -f json -o bandit-report.json || true
+        bandit -r solarstorm_scout/ -f json -o bandit-report.json || true
         if [ -f bandit-report.json ]; then
           echo "Bandit scan completed"
           cat bandit-report.json
