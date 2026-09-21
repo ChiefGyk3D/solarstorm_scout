@@ -1,0 +1,44 @@
+# Container release: build and test on every pull request; on main and on a
+# version tag, publish a multi-arch (amd64 + arm64) image to GHCR, signed with
+# cosign, with a syft SBOM and build provenance attached. The jobs live in
+# ChiefGyk3D/git-your-ship-together.
+#
+# Image: ghcr.io/chiefgyk3d/solarstorm_scout
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly rebuild of `latest` from main so base-image fixes reach the
+    # published image between commits. Monday 05:00 UTC.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-docker-release.yml@d5d9556afeeb06f78419b91ecb5d146e789c6d51 # v1.0.0
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}   # optional Service Token fallback; unset means OIDC only
+    with:
+      dockerfile: Dockerfile
+      push: ${{ github.event_name != 'pull_request' }}
+      # GHCR only: the old docker-build-publish.yml never published to
+      # Docker Hub, so nothing is dropped by leaving `dockerhub` at its
+      # default of false.
+      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      doppler-project: solarstorm-scout
+      doppler-config: ci
+      doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}

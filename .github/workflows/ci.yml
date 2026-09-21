@@ -1,0 +1,51 @@
+# Lint, import and dependency checks on Python 3.11-3.14, Docker build. The
+# jobs live in ChiefGyk3D/git-your-ship-together; this file only says what is
+# specific to SolarStorm Scout.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-ci.yml@d5d9556afeeb06f78419b91ecb5d146e789c6d51 # v1.0.0
+    permissions:
+      contents: read
+      id-token: write   # Doppler OIDC
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}   # optional Service Token fallback; unset means OIDC only
+    with:
+      python-versions: '["3.11", "3.12", "3.13", "3.14"]'
+      coverage-python-version: "3.14"
+      lint-python-version: "3.14"
+      install-command: |
+        python -m pip install --upgrade "pip>=25.3"
+        pip install -r requirements.txt
+      # There is no pytest suite yet. The old ci-tests.yml checked that every
+      # module imports and that the pinned requirements are mutually
+      # consistent; this is the same check, one line per module.
+      test-command: |
+        python -c "import solarstorm_scout; from solarstorm_scout import config, spaceweather, formatter, social, chart_renderer, demo"
+        python -c "import aiohttp, atproto, mastodon, matplotlib"
+        pip check
+      lint-command: ruff check solarstorm_scout/ --output-format=github
+      # Lint was advisory before the migration (and linted the wrong
+      # directory) and stays advisory until the tree is clean; then delete
+      # this line and let it gate.
+      lint-continue-on-error: true
+      dockerfile: Dockerfile
+      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      doppler-project: solarstorm-scout
+      doppler-config: ci
+      doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}

@@ -1,4 +1,6 @@
-FROM python:3.14-slim
+# The base image is pinned by digest so a rebuild is reproducible and a
+# retagged upstream image cannot slip in; Dependabot moves the digest.
+FROM python:3.14-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2
 
 LABEL maintainer="SolarStorm Scout Team"
 LABEL description="Space Weather Social Media Bot - Posts HF propagation updates"

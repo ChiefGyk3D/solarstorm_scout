@@ -84,3 +84,6 @@ Desktop.ini
 
 # Doppler cache
 .doppler/
+
+# Scanner output is a CI artifact, never a committed file
+*.sarif
