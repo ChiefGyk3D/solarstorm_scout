@@ -8,10 +8,10 @@ Formats space weather data into social media posts.
 Bluesky: 300 char max per post
 Mastodon: 500 char max per post
 """
+from __future__ import annotations
 
 import logging
-from typing import List, Dict, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,8 @@ def ensure_char_limit(text: str, limit: int) -> str:
 
 
 def format_thread_posts(
-    data: Dict, platform: str = "bluesky", include_hamradio: bool = True
-) -> List[Dict]:
+    data: dict, platform: str = "bluesky", include_hamradio: bool = True
+) -> list[dict]:
     """
     Format space weather data into a thread of posts.
 
@@ -111,7 +111,7 @@ def format_thread_posts(
 
 
 def format_solar_indices_post(
-    data: Dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True
 ) -> str:
     """Format Post 1: Solar Indices + NOAA Scales."""
     sfi = data.get("solar_flux", "N/A")
@@ -152,12 +152,11 @@ D-Layer: {abs_pct}
 
 
 def format_band_conditions_post(
-    data: Dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True
 ) -> str:
     """Format Post 2: Band Conditions."""
     bands = data.get("band_conditions", {})
     best_now = data.get("best_bands_now", "N/A")
-    fof2 = data.get("fof2", "N/A")
     muf = data.get("muf_dx", "N/A")
 
     # Format band list - group to save space
@@ -204,13 +203,13 @@ Based on MUF={muf}MHz
 
 
 def format_absorption_post(
-    data: Dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True
 ) -> str:
     """Format Post 3: D-Region Absorption."""
     absorption = data.get("d_region_absorption", "N/A")
 
     # Get current time for context
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     hour = now.hour
 
     # Time-based guidance
@@ -254,7 +253,7 @@ def format_absorption_post(
 
 
 def format_aurora_post(
-    data: Dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True
 ) -> str:
     """Format Post 4: Aurora Forecast."""
     aurora_power = data.get("aurora_power", "N/A")
@@ -314,7 +313,7 @@ K-index: {k_idx}
     return ensure_char_limit(post, char_limit)
 
 
-def format_xray_post(data: Dict, char_limit: int, include_hamradio: bool = True) -> str:
+def format_xray_post(data: dict, char_limit: int, include_hamradio: bool = True) -> str:
     """Format Post 5: GOES X-Ray Flux."""
     xray_class = data.get("xray_class", "N/A")
 
@@ -338,7 +337,7 @@ def format_xray_post(data: Dict, char_limit: int, include_hamradio: bool = True)
             impact = "⚪ QUIET"
             advice = "Background levels"
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Condensed helper
     if char_limit == 300:  # Bluesky
@@ -370,7 +369,7 @@ NOAA SWPC {now.strftime('%H:%M')}Z
     return ensure_char_limit(post, char_limit)
 
 
-def get_post_stats(posts: List[Dict], platform: str) -> Dict:
+def get_post_stats(posts: list[dict], platform: str) -> dict:
     """
     Get statistics about formatted posts.
 

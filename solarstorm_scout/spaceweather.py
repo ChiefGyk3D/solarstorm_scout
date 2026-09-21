@@ -6,12 +6,13 @@
 Space Weather Data Fetcher for SolarStorm Scout
 Fetches real-time data from NOAA Space Weather Prediction Center.
 """
+from __future__ import annotations
 
 import logging
-import aiohttp
 import math
 from datetime import datetime, timezone
-from typing import Dict, Optional, Tuple
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def estimate_fof2_from_sfi(sfi_value: float) -> float:
     return base_fof2 * scale
 
 
-def calculate_d_layer_absorption(utc_hour: int, solar_flux: float, k_index: float) -> Tuple[float, str]:
+def calculate_d_layer_absorption(utc_hour: int, solar_flux: float, k_index: float) -> tuple[float, str]:
     """
     Calculate D-layer absorption prediction.
     
@@ -99,7 +100,7 @@ def calculate_d_layer_absorption(utc_hour: int, solar_flux: float, k_index: floa
     return absorption, f"{emoji} {desc}"
 
 
-def calculate_band_conditions(fof2: float, muf: float, absorption: float, k_index: float, utc_hour: int) -> Dict:
+def calculate_band_conditions(fof2: float, muf: float, absorption: float, k_index: float, utc_hour: int) -> dict:
     """
     Calculate band-by-band HF propagation conditions.
     
@@ -185,7 +186,7 @@ def get_best_bands_now(utc_hour: int, fof2: float) -> str:
             return "80m, 40m, 30m"
 
 
-async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = None) -> Dict:
+async def fetch_space_weather_data(session: aiohttp.ClientSession | None = None) -> dict:
     """
     Fetch comprehensive space weather data from NOAA.
     
@@ -232,7 +233,7 @@ async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = No
                         if data['solar_flux'] == 'N/A' and flux_data:
                             data['solar_flux'] = int(flux_data[-1].get('flux', 0))
                         logger.info(f"Fetched Solar Flux: {data['solar_flux']}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one NOAA feed failing must not lose the others; error is logged
             logger.error(f"Error fetching solar flux: {e}")
         
         # Fetch K-index
@@ -243,7 +244,7 @@ async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = No
                     if k_data:
                         data['k_index'] = int(k_data[-1].get('kp_index', 0))
                         logger.info(f"Fetched K-index: {data['k_index']}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one NOAA feed failing must not lose the others; error is logged
             logger.error(f"Error fetching K-index: {e}")
         
         # Calculate A-index from K-index
@@ -263,7 +264,7 @@ async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = No
                         data['s_scale'] = current.get('S', {}).get('Scale', 'N/A')
                         data['g_scale'] = current.get('G', {}).get('Scale', 'N/A')
                         logger.info(f"Fetched NOAA Scales - R:{data['r_scale']} S:{data['s_scale']} G:{data['g_scale']}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one NOAA feed failing must not lose the others; error is logged
             logger.error(f"Error fetching NOAA scales: {e}")
             data['r_scale'] = 'N/A'
             data['s_scale'] = 'N/A'
@@ -291,7 +292,7 @@ async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = No
                             else:
                                 data['xray_class'] = f"A{flux/1e-8:.1f}"
                         logger.info(f"Fetched X-ray class: {data['xray_class']}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one NOAA feed failing must not lose the others; error is logged
             logger.error(f"Error fetching X-ray data: {e}")
         
         # Fetch Aurora forecast (parse text format)
@@ -312,7 +313,7 @@ async def fetch_space_weather_data(session: Optional[aiohttp.ClientSession] = No
                                     break
                                 except (ValueError, IndexError):
                                     continue
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one NOAA feed failing must not lose the others; error is logged
             logger.error(f"Error fetching aurora data: {e}")
         
         # Calculate derived values if we have the data

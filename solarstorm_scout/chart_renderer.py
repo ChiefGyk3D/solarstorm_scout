@@ -6,22 +6,23 @@
 Chart Renderer for SolarStorm Scout
 Generates matplotlib charts from NOAA JSON data.
 """
+from __future__ import annotations
 
-import logging
 import io
-import aiohttp
+import logging
 from datetime import datetime, timezone
-from typing import Optional
 
+import aiohttp
 import matplotlib
+
 matplotlib.use('Agg')  # Non-interactive backend for server use
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
 
-async def plot_xray_flux(period: str = '6h') -> Optional[io.BytesIO]:
+async def plot_xray_flux(period: str = '6h') -> io.BytesIO | None:
     """
     Fetch GOES X-ray flux data from NOAA and generate a chart.
     
@@ -42,13 +43,12 @@ async def plot_xray_flux(period: str = '6h') -> Optional[io.BytesIO]:
     json_url = f"https://services.swpc.noaa.gov/json/goes/primary/xrays-{period_file}.json"
     
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(json_url, timeout=30) as resp:
-                if resp.status != 200:
-                    logger.error(f"Failed to fetch GOES data: {resp.status}")
-                    return None
-                
-                data = await resp.json()
+        async with aiohttp.ClientSession() as session, session.get(json_url, timeout=30) as resp:
+            if resp.status != 200:
+                logger.error(f"Failed to fetch GOES data: {resp.status}")
+                return None
+            
+            data = await resp.json()
         
         if not data:
             logger.error("No GOES X-ray data received")
@@ -144,6 +144,6 @@ async def plot_xray_flux(period: str = '6h') -> Optional[io.BytesIO]:
         logger.info(f"Successfully generated GOES X-ray flux chart ({period_file})")
         return buf
         
-    except Exception as e:
-        logger.error(f"Error generating X-ray flux chart: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error generating X-ray flux chart")
         return None

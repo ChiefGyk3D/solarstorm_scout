@@ -40,10 +40,6 @@ jobs:
         python -c "import aiohttp, atproto, mastodon, matplotlib"
         pip check
       lint-command: ruff check solarstorm_scout/ --output-format=github
-      # Lint was advisory before the migration (and linted the wrong
-      # directory) and stays advisory until the tree is clean; then delete
-      # this line and let it gate.
-      lint-continue-on-error: true
       dockerfile: Dockerfile
       docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
       doppler-project: solarstorm-scout

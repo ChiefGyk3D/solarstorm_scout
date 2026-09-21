@@ -6,10 +6,10 @@
 Configuration and Secrets Management for SolarStorm Scout
 Supports .env files and Doppler secrets manager.
 """
+from __future__ import annotations
 
-import os
 import logging
-from typing import Optional
+import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ except ImportError:
 class Config:
     """Configuration manager supporting .env and Doppler."""
     
-    def __init__(self, env_file: Optional[str] = None):
+    def __init__(self, env_file: str | None = None):
         """
         Initialize configuration.
         
@@ -87,10 +87,10 @@ class Config:
                 self.doppler_client.set_access_token(doppler_token)
                 self.doppler_enabled = True
                 logger.info("✓ Doppler secrets manager initialized")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # fall back to .env; error is logged
                 logger.error(f"Failed to initialize Doppler: {e}")
     
-    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, key: str, default: str | None = None) -> str | None:
         """
         Get configuration value.
         Priority: Doppler > Environment Variable (.env) > Default
@@ -122,14 +122,13 @@ class Config:
                     return value if value is not None else default
                 
                 secrets = self.doppler_client.secrets.list(project=project, config=config)
-                if secrets and hasattr(secrets, 'secrets'):
-                    # Check if this key exists in Doppler
-                    if key in secrets.secrets:
-                        doppler_value = secrets.secrets[key].get('computed')
-                        if doppler_value:  # Only override if Doppler has a value
-                            logger.debug(f"Using Doppler value for {key}")
-                            return doppler_value
-            except Exception as e:
+                # Check if this key exists in Doppler
+                if secrets and hasattr(secrets, 'secrets') and key in secrets.secrets:
+                    doppler_value = secrets.secrets[key].get('computed')
+                    if doppler_value:  # Only override if Doppler has a value
+                        logger.debug(f"Using Doppler value for {key}")
+                        return doppler_value
+            except Exception as e:  # noqa: BLE001  # fall back to .env; first failure is logged
                 # Log first failure to help with debugging
                 if not hasattr(self, '_doppler_error_logged'):
                     logger.warning(f"Doppler fetch failed: {e}")
