@@ -1,0 +1,21 @@
+# gitleaks configuration for the Security workflow (git-your-ship-together).
+#
+# Extends the default ruleset without disabling any rule. The first
+# full-history scan of this repository (26 commits, 2026-09-21) found nothing,
+# so the allowlist is empty: a documented placeholder that later trips a
+# generic detector goes here as an anchored, whole-match regex, never as a
+# rule exclusion, so a real leak still fails the job.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and committed scan reports"
+regexTarget = "secret"
+regexes = []
+paths = [
+  # Scanner output is a CI artifact, never a committed file (*.sarif is
+  # gitignored); this keeps a report that slips in from failing the scan on
+  # the example fixes it quotes.
+  '''\.sarif$''',
+]
