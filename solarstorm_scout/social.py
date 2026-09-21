@@ -6,24 +6,24 @@
 Social Media Poster for SolarStorm Scout
 Supports Bluesky and Mastodon with threading and images.
 """
+from __future__ import annotations
 
 import logging
 import re
-import io
+
 import aiohttp
-from typing import Optional, List, Dict
-from pathlib import Path
 from atproto import Client, client_utils, models
 from mastodon import Mastodon
-from .formatter import format_thread_posts
+
 from .chart_renderer import plot_xray_flux
+from .formatter import format_thread_posts
 
 logger = logging.getLogger(__name__)
 
 
 async def download_image(
-    url: str, session: Optional[aiohttp.ClientSession] = None
-) -> Optional[bytes]:
+    url: str, session: aiohttp.ClientSession | None = None
+) -> bytes | None:
     """Download image from URL."""
     close_session = False
     if session is None:
@@ -34,7 +34,7 @@ async def download_image(
         async with session.get(url, timeout=30) as resp:
             if resp.status == 200:
                 return await resp.read()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
         logger.error(f"Failed to download image from {url}: {e}")
     finally:
         if close_session:
@@ -72,13 +72,13 @@ class BlueskyPoster:
             self.authenticated = True
             logger.info(f"✓ Bluesky authenticated as {self.handle}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
             logger.error(f"✗ Bluesky authentication failed: {e}")
             self.authenticated = False
             return False
 
     async def post_thread(
-        self, posts: List[Dict], session: Optional[aiohttp.ClientSession] = None
+        self, posts: list[dict], session: aiohttp.ClientSession | None = None
     ) -> bool:
         """
         Post a thread to Bluesky with images.
@@ -151,7 +151,7 @@ class BlueskyPoster:
                                 ]
                             )
                             logger.info(f"Added image to post {i+1}")
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
                             logger.warning(
                                 f"Failed to upload image for post {i+1}: {e}"
                             )
@@ -179,7 +179,7 @@ class BlueskyPoster:
             logger.info(f"✓ Posted Bluesky thread ({len(posts)} posts)")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
             logger.error(f"✗ Error posting Bluesky thread: {e}")
             return False
 
@@ -191,8 +191,8 @@ class MastodonPoster:
         self,
         api_base_url: str,
         access_token: str,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
     ):
         """
         Initialize Mastodon poster.
@@ -237,13 +237,13 @@ class MastodonPoster:
             logger.info(f"✓ Mastodon authenticated at {self.api_base_url}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
             logger.error(f"✗ Mastodon authentication failed: {e}")
             self.authenticated = False
             return False
 
     async def post_thread(
-        self, posts: List[Dict], session: Optional[aiohttp.ClientSession] = None
+        self, posts: list[dict], session: aiohttp.ClientSession | None = None
     ) -> bool:
         """
         Post a thread to Mastodon with images.
@@ -287,8 +287,8 @@ class MastodonPoster:
                     if img_data:
                         try:
                             # Write to temp file for Mastodon.py
-                            import tempfile
                             import os
+                            import tempfile
 
                             with tempfile.NamedTemporaryFile(
                                 delete=False, suffix=".png"
@@ -304,7 +304,7 @@ class MastodonPoster:
 
                             # Clean up temp file
                             os.unlink(tmp_path)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
                             logger.warning(
                                 f"Failed to upload image for post {i+1}: {e}"
                             )
@@ -323,7 +323,7 @@ class MastodonPoster:
             logger.info(f"✓ Posted Mastodon thread ({len(posts)} posts)")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
             logger.error(f"✗ Error posting Mastodon thread: {e}")
             return False
 
@@ -351,8 +351,8 @@ class SocialMediaManager:
         self,
         api_base_url: str,
         access_token: str,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
     ) -> bool:
         """
         Add Mastodon platform.
@@ -368,8 +368,8 @@ class SocialMediaManager:
 
     async def post_to_all(
         self,
-        data: Dict,
-        session: Optional[aiohttp.ClientSession] = None,
+        data: dict,
+        session: aiohttp.ClientSession | None = None,
         include_hamradio: bool = True,
     ) -> dict:
         """
@@ -393,7 +393,7 @@ class SocialMediaManager:
 
                 success = await poster.post_thread(posts, session)
                 results[platform_name] = success
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
                 logger.error(f"Error posting to {platform_name}: {e}")
                 results[platform_name] = False
 
@@ -403,6 +403,6 @@ class SocialMediaManager:
         """Get number of configured platforms."""
         return len(self.platforms)
 
-    def get_platform_names(self) -> List[str]:
+    def get_platform_names(self) -> list[str]:
         """Get list of configured platform names."""
         return [name for name, _ in self.platforms]

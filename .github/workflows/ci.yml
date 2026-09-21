@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-ci.yml@d5d9556afeeb06f78419b91ecb5d146e789c6d51 # v1.0.0
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-ci.yml@38f1c486833c7f572502b134e950913cc92d044c # v1.1.1
     permissions:
       contents: read
       id-token: write   # Doppler OIDC
@@ -40,12 +40,8 @@ jobs:
         python -c "import aiohttp, atproto, mastodon, matplotlib"
         pip check
       lint-command: ruff check solarstorm_scout/ --output-format=github
-      # Lint was advisory before the migration (and linted the wrong
-      # directory) and stays advisory until the tree is clean; then delete
-      # this line and let it gate.
-      lint-continue-on-error: true
       dockerfile: Dockerfile
       docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
-      doppler-project: solarstorm-scout
+      doppler-project: ci
       doppler-config: ci
       doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}

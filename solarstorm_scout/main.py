@@ -8,20 +8,18 @@ SolarStorm Scout - Space Weather Social Media Bot
 Posts HF propagation updates to Bluesky and Mastodon.
 """
 
-import sys
 import asyncio
 import logging
+import sys
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from solarstorm_scout.config import Config, setup_logging
-from solarstorm_scout.spaceweather import fetch_space_weather_data
-from solarstorm_scout.formatter import format_thread_posts
 from solarstorm_scout.social import SocialMediaManager
+from solarstorm_scout.spaceweather import fetch_space_weather_data
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +77,7 @@ def check_rate_limit() -> bool:
             return False
 
         return True
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.warning(f"Could not read last run time: {e}. Proceeding...")
         return True
 
@@ -89,7 +87,7 @@ def record_run_time():
     try:
         LAST_RUN_FILE.parent.mkdir(parents=True, exist_ok=True)
         LAST_RUN_FILE.write_text(str(time.time()))
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"Could not record run time: {e}")
 
 
@@ -116,7 +114,7 @@ def should_include_hamradio() -> bool:
                 f"ℹ️  #HamRadio last used {hours_since_last:.1f} hours ago (limit: {HAMRADIO_INTERVAL_HOURS}h)"
             )
             return False
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.warning(
             f"Could not read last #HamRadio time: {e}. Including #HamRadio..."
         )
@@ -129,7 +127,7 @@ def record_hamradio_usage():
         LAST_HAMRADIO_FILE.parent.mkdir(parents=True, exist_ok=True)
         LAST_HAMRADIO_FILE.write_text(str(time.time()))
         logger.info("✓ Recorded #HamRadio usage timestamp")
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"Could not record #HamRadio usage time: {e}")
 
 
@@ -167,7 +165,7 @@ async def main():
                 logger.info("✓ Bluesky platform added")
             else:
                 logger.warning("✗ Failed to add Bluesky platform")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
             logger.error(f"Error setting up Bluesky: {e}")
 
     if config.is_mastodon_enabled():
@@ -177,7 +175,7 @@ async def main():
                 logger.info("✓ Mastodon platform added")
             else:
                 logger.warning("✗ Failed to add Mastodon platform")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
             logger.error(f"Error setting up Mastodon: {e}")
 
     # Check if any platforms were added
@@ -214,7 +212,7 @@ async def main():
             )
             sys.exit(1)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # log and exit non-zero; the scheduler retries
         logger.error(f"Failed to fetch space weather data: {e}")
         sys.exit(1)
 
@@ -251,7 +249,7 @@ async def main():
         if include_hamradio:
             record_hamradio_usage()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # log and exit non-zero; the scheduler retries
         logger.error(f"Failed to post to social media: {e}")
         sys.exit(1)
 
@@ -266,6 +264,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
         sys.exit(0)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Unexpected error")
         sys.exit(1)

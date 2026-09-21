@@ -4,17 +4,17 @@ SolarStorm Scout - Test/Demo Script
 Shows what the posts will look like without actually posting to social media.
 """
 
-import sys
 import asyncio
 import logging
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from solarstorm_scout.spaceweather import fetch_space_weather_data
 from solarstorm_scout.formatter import format_thread_posts, get_post_stats
+from solarstorm_scout.spaceweather import fetch_space_weather_data
 
 # Setup simple logging
 logging.basicConfig(
@@ -36,7 +36,6 @@ def print_post(post_num: int, post_data: dict, platform: str, limit: int):
     """Print a single post preview."""
     text = post_data['text']
     image_url = post_data.get('image_url')
-    alt_text = post_data.get('alt_text', '')
     
     length = len(text)
     remaining = limit - length
@@ -82,7 +81,7 @@ async def main():
         print(f"   D-Region: {data.get('d_region_absorption', 'N/A')}")
         print(f"   Aurora: {data.get('aurora_power', 'N/A')} GW")
         print(f"   X-Ray: {data.get('xray_class', 'N/A')}")
-        print(f"   Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        print(f"   Timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         
         # Format posts for both platforms
         print("\n" + "=" * 70)
@@ -148,8 +147,8 @@ async def main():
         print("  2. Run: python3 -m solarstorm_scout.main")
         print()
         
-    except Exception as e:
-        logger.error(f"Error running demo: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error running demo")
         sys.exit(1)
 
 
