@@ -39,6 +39,6 @@ jobs:
       # Docker Hub, so nothing is dropped by leaving `dockerhub` at its
       # default of false.
       docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
-      doppler-project: solarstorm-scout
+      doppler-project: ci
       doppler-config: ci
       doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
