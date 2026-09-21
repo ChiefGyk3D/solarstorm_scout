@@ -18,8 +18,14 @@ RUN apt-get update && \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies, then remove pip from the runtime image. The
+# bot never runs pip, and pip's own vendored libraries (listed in
+# pip/_vendor/bom.cdx.json: msgpack 1.1.2, setuptools 70.3.0) are what Trivy
+# reports as Python-level findings; no requirement installs either package,
+# and pip is already the latest release, so upgrading cannot clear them.
+# Dropping pip removes that code, and the findings, from the shipped image.
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pip
 
 # Copy application code
 COPY solarstorm_scout/ ./solarstorm_scout/
