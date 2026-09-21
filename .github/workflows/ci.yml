@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-ci.yml@38f1c486833c7f572502b134e950913cc92d044c # v1.1.1
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-ci.yml@f6538c8277d5b02b1c8c8f817dc354c0faaa4622 # v1.2.0
     permissions:
       contents: read
       id-token: write   # Doppler OIDC
@@ -42,6 +42,7 @@ jobs:
       lint-command: ruff check solarstorm_scout/ --output-format=github
       dockerfile: Dockerfile
       docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      egress-policy: block
       doppler-project: ci
       doppler-config: ci
       doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
