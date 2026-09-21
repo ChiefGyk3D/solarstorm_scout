@@ -70,7 +70,7 @@ class BlueskyPoster:
             self.client = Client()
             self.client.login(self.handle, self.app_password)
             self.authenticated = True
-            logger.info(f"✓ Bluesky authenticated as {self.handle}")
+            logger.info("✓ Bluesky authenticated with the configured BLUESKY_HANDLE")
             return True
         except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
             logger.error(f"✗ Bluesky authentication failed: {e}")
@@ -234,7 +234,7 @@ class MastodonPoster:
             # Verify credentials
             self.client.account_verify_credentials()
             self.authenticated = True
-            logger.info(f"✓ Mastodon authenticated at {self.api_base_url}")
+            logger.info("✓ Mastodon authenticated at the configured MASTODON_API_BASE_URL")
             return True
 
         except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
