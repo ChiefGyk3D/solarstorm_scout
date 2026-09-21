@@ -24,7 +24,7 @@ COPY requirements.txt .
 # reports as Python-level findings; no requirement installs either package,
 # and pip is already the latest release, so upgrading cannot clear them.
 # Dropping pip removes that code, and the findings, from the shipped image.
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt && \
     pip uninstall -y pip
 
 # Copy application code
