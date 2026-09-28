@@ -9,11 +9,13 @@
 # SolarStorm Scout Requirements
 # Python 3.11+ (numpy 2.3+ requires Python 3.11)
 
-# Shared core: Bluesky/Mastodon posting with image attachments, LLM generation
-# (Ollama, Gemini if configured, failover + guardrails), config/secrets,
-# logging. The extras pull atproto, grapheme, beautifulsoup4, Mastodon.py,
-# ollama and the Doppler SDK; add [gemini] for the cloud fallback.
-hypeman-social[bluesky,mastodon,ollama,doppler]>=0.3.0,<0.4
+# Shared core: Bluesky/Mastodon posting, LLM generation (Ollama, Gemini if
+# configured, failover + guardrails), config/secrets, logging. The extras pull
+# atproto, grapheme, beautifulsoup4, Mastodon.py, ollama and the Doppler SDK;
+# add [gemini] for the cloud fallback. Image attachments and token-only
+# Mastodon auth arrive in hypeman 0.3.0; until the lock resolves that version,
+# solarstorm_scout/platforms.py carries them.
+hypeman-social[bluesky,mastodon,ollama,doppler]>=0.2.0,<0.4
 
 # NOAA fetches and image downloads
 aiohttp==3.14.3

@@ -38,7 +38,7 @@ jobs:
       # and the posting flow against fakes; the import and `pip check` lines
       # are the original consistency check for the pinned requirements.
       test-command: |
-        python -c "import solarstorm_scout; from solarstorm_scout import config, spaceweather, formatter, social, chart_renderer, demo, forecaster"
+        python -c "import solarstorm_scout; from solarstorm_scout import config, spaceweather, formatter, social, chart_renderer, demo, forecaster, platforms"
         python -c "import aiohttp, atproto, mastodon, matplotlib, ollama, hypeman_social"
         pip check
         pytest tests/ -v

@@ -32,9 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Bluesky and Mastodon posting, the LLM layer, configuration and secrets
   (Doppler, and now AWS Secrets Manager and Vault) and logging come from the
   library; the bot's own copies of the Bluesky/Mastodon posters and the
-  Config class are gone. Image posts use hypeman 0.3.0's `images`
-  attachment, added for this bot. A fix in the library now reaches all
-  four daemons.
+  Config class are gone. A fix in the library now reaches all four daemons.
+  Image attachments and token-only Mastodon auth were added to hypeman for
+  this bot (0.3.0); until the lock resolves that release, a thin layer in
+  `solarstorm_scout/platforms.py` carries both on 0.2.0 and steps aside
+  automatically on 0.3.0.
 - `BLUESKY_ENABLE_POSTING` / `MASTODON_ENABLE_POSTING` are the switch names
   hypeman reads; the original `BLUESKY_ENABLED` / `MASTODON_ENABLED` keep
   working and are translated at startup.

@@ -348,6 +348,7 @@ solarstorm_scout/
 │   ├── spaceweather.py  # NOAA data fetcher
 │   ├── formatter.py     # Message formatter (thread layout and numbering)
 │   ├── forecaster.py    # On-air briefing via hypeman-social's LLM manager
+│   ├── platforms.py     # hypeman's Bluesky/Mastodon, with images + token-only auth on hypeman 0.2.0
 │   ├── social.py        # Thread posting through hypeman-social's platforms
 │   ├── chart_renderer.py # GOES X-ray chart generator
 │   └── demo.py          # Preview tool

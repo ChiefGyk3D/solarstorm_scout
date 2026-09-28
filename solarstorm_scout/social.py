@@ -18,17 +18,19 @@ import logging
 from collections.abc import Callable
 
 import aiohttp
-from hypeman_social.social import BlueskyPlatform, MastodonPlatform, SocialPlatform
+from hypeman_social.social import SocialPlatform
 
 from .chart_renderer import plot_xray_flux
 from .config import enabled_platforms
 from .formatter import briefing_char_budget, format_thread_posts
+from .platforms import BlueskyPlatform, MastodonPlatform
 
 logger = logging.getLogger(__name__)
 
-#: hypeman platform classes for the networks this bot posts to. Each one
-#: reads its own configuration (BLUESKY_HANDLE, MASTODON_ACCESS_TOKEN, ...)
-#: through hypeman's config and secret chain.
+#: hypeman platform classes for the networks this bot posts to (see
+#: platforms.py for the thin layer over them). Each one reads its own
+#: configuration (BLUESKY_HANDLE, MASTODON_ACCESS_TOKEN, ...) through
+#: hypeman's config and secret chain.
 PLATFORM_CLASSES: dict[str, type[SocialPlatform]] = {
     'bluesky': BlueskyPlatform,
     'mastodon': MastodonPlatform,
