@@ -3,7 +3,6 @@
 
 set -e
 
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -65,15 +64,15 @@ echo -e "${GREEN}Systemd service uninstalled!${NC}"
 echo ""
 
 # Ask about Docker cleanup
-if command -v docker &> /dev/null; then
+if command -v docker &>/dev/null; then
     echo -e "${BLUE}Docker Cleanup:${NC}"
     echo "Do you want to remove Docker images?"
     echo ""
-    
+
     # Check for Docker images
     LOCAL_IMAGE=$(docker images -q solarstorm-scout:local 2>/dev/null)
     GHCR_IMAGE=$(docker images -q ghcr.io/chiefgyk3d/solarstorm_scout 2>/dev/null)
-    
+
     if [ -n "$LOCAL_IMAGE" ] || [ -n "$GHCR_IMAGE" ]; then
         read -p "Remove SolarStorm Scout Docker images? (y/N) " -n 1 -r
         echo
