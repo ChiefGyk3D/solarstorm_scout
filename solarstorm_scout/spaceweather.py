@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import aiohttp
 
@@ -207,7 +207,7 @@ async def fetch_space_weather_data(session: aiohttp.ClientSession | None = None)
     
     try:
         data = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'solar_flux': 'N/A',
             'k_index': 'N/A',
             'aurora_power': 'N/A',
@@ -321,7 +321,7 @@ async def fetch_space_weather_data(session: aiohttp.ClientSession | None = None)
             data['fof2'] = round(estimate_fof2_from_sfi(data['solar_flux']), 1)
             
             # Calculate D-region absorption
-            utc_hour = datetime.now(timezone.utc).hour
+            utc_hour = datetime.now(UTC).hour
             k_val = data['k_index'] if isinstance(data['k_index'], (int, float)) else 2.0
             absorption, abs_desc = calculate_d_layer_absorption(utc_hour, data['solar_flux'], k_val)
             data['d_region_absorption'] = abs_desc
@@ -347,7 +347,7 @@ async def fetch_space_weather_data(session: aiohttp.ClientSession | None = None)
                 data['propagation_conditions'] = "🔴 Very Poor"
             
             # Band conditions
-            utc_hour = datetime.now(timezone.utc).hour
+            utc_hour = datetime.now(UTC).hour
             data['band_conditions'] = calculate_band_conditions(
                 data['fof2'], muf_dx, absorption, k_val, utc_hour
             )

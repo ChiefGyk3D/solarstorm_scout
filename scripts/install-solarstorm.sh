@@ -11,11 +11,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ACTUAL_USER="$USER"
-ACTUAL_USER_UID=$(id -u)
-ACTUAL_USER_GID=$(id -g)
 
 echo -e "${CYAN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║     🌞 SolarStorm Scout Installer 🌞      ║${NC}"
@@ -27,7 +25,7 @@ echo -e "${BLUE}User:${NC} $ACTUAL_USER"
 echo ""
 
 # Check if Python 3.8+ is available
-if ! command -v python3 &> /dev/null; then
+if ! command -v python3 &>/dev/null; then
     echo -e "${RED}ERROR: python3 not found${NC}"
     exit 1
 fi
@@ -115,7 +113,7 @@ fi
 if sudo systemctl list-units --full --all | grep -q "solarstorm-scout.service"; then
     echo ""
     echo -e "${YELLOW}Service already exists${NC}"
-    
+
     if sudo systemctl is-active --quiet solarstorm-scout.timer; then
         echo -e "${YELLOW}Timer is currently running${NC}"
         read -p "Stop timer before reinstalling? (Y/n) " -n 1 -r
@@ -127,7 +125,7 @@ if sudo systemctl list-units --full --all | grep -q "solarstorm-scout.service"; 
             echo -e "${GREEN}✓${NC} Timer stopped"
         fi
     fi
-    
+
     # Check for .last_run file (anti-spam tracking)
     if [ -f "$PROJECT_DIR/logs/.last_run" ]; then
         echo ""
@@ -165,12 +163,12 @@ if [ "$DEPLOY_TYPE" = "1" ]; then
     read -p "Select [1-2] (default: 1): " -n 1 -r PYTHON_MODE
     echo ""
     PYTHON_MODE=${PYTHON_MODE:-1}
-    
+
     if [[ ! $PYTHON_MODE =~ ^[1-2]$ ]]; then
         echo -e "${RED}Invalid option${NC}"
         exit 1
     fi
-    
+
     DEPLOYMENT_MODE=$PYTHON_MODE
 else
     echo ""
@@ -181,12 +179,12 @@ else
     read -p "Select [1-2] (default: 1): " -n 1 -r DOCKER_MODE
     echo ""
     DOCKER_MODE=${DOCKER_MODE:-1}
-    
+
     if [[ ! $DOCKER_MODE =~ ^[1-2]$ ]]; then
         echo -e "${RED}Invalid option${NC}"
         exit 1
     fi
-    
+
     # Map to original numbering: 3=GHCR, 4=local build
     DEPLOYMENT_MODE=$((DOCKER_MODE + 2))
 fi
@@ -194,20 +192,20 @@ fi
 # Setup environment based on deployment mode
 if [ "$DEPLOYMENT_MODE" = "3" ] || [ "$DEPLOYMENT_MODE" = "4" ]; then
     # Docker deployment
-    if ! command -v docker &> /dev/null; then
+    if ! command -v docker &>/dev/null; then
         echo -e "${RED}ERROR: Docker not installed${NC}"
         echo "Please install Docker first: https://docs.docker.com/get-docker/"
         exit 1
     fi
-    
+
     echo -e "${GREEN}✓${NC} Docker found"
-    
+
     if [ "$DEPLOYMENT_MODE" = "3" ]; then
         # Pull from GHCR
         echo ""
         echo "Pulling Docker image from GHCR..."
         DOCKER_IMAGE="ghcr.io/chiefgyk3d/solarstorm_scout:latest"
-        
+
         if docker pull "$DOCKER_IMAGE"; then
             echo -e "${GREEN}✓${NC} Image pulled successfully"
         else
@@ -222,46 +220,46 @@ if [ "$DEPLOYMENT_MODE" = "3" ] || [ "$DEPLOYMENT_MODE" = "4" ]; then
             fi
         fi
     fi
-    
+
     if [ "$DEPLOYMENT_MODE" = "4" ]; then
         # Build Docker image locally
         echo ""
         echo "Building Docker image locally..."
-        
+
         if ! docker build -t solarstorm-scout:local "$PROJECT_DIR"; then
             echo -e "${RED}✗${NC} Docker build failed"
             exit 1
         fi
-        
+
         DOCKER_IMAGE="solarstorm-scout:local"
         echo -e "${GREEN}✓${NC} Image built successfully"
     fi
-    
+
     # Docker-specific service configuration
     # --rm flag automatically removes container when it exits
     EXEC_START="/usr/bin/docker run --rm --name solarstorm-scout --env-file=$PROJECT_DIR/.env -v $PROJECT_DIR/logs:/app/logs $DOCKER_IMAGE"
-    
+
 elif [ "$DEPLOYMENT_MODE" = "1" ]; then
     echo ""
     echo "Setting up Python virtual environment..."
-    
+
     VENV_DIR="$PROJECT_DIR/venv"
-    
+
     if [ ! -d "$VENV_DIR" ]; then
         python3 -m venv "$VENV_DIR"
         echo -e "${GREEN}✓${NC} Virtual environment created"
     else
         echo -e "${GREEN}✓${NC} Virtual environment exists"
     fi
-    
+
     # Activate and install dependencies
     source "$VENV_DIR/bin/activate"
-    
+
     echo "Installing dependencies..."
-    pip install --upgrade pip > /dev/null 2>&1
+    pip install --upgrade pip >/dev/null 2>&1
     pip install -r "$PROJECT_DIR/requirements.txt"
     echo -e "${GREEN}✓${NC} Dependencies installed"
-    
+
     PYTHON_BIN="$VENV_DIR/bin/python3"
     PYTHON_PATH="$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin"
 else
@@ -269,7 +267,7 @@ else
     echo "Installing dependencies to system Python..."
     pip3 install --user -r "$PROJECT_DIR/requirements.txt"
     echo -e "${GREEN}✓${NC} Dependencies installed"
-    
+
     PYTHON_BIN="python3"
     PYTHON_PATH="/usr/local/bin:/usr/bin:/bin"
     EXEC_START="$PYTHON_BIN -m solarstorm_scout.main"
@@ -300,7 +298,7 @@ fi
 # Create service file based on deployment mode
 if [ "$DEPLOYMENT_MODE" = "3" ] || [ "$DEPLOYMENT_MODE" = "4" ]; then
     # Docker service file
-    cat << EOF | sudo tee "$SERVICE_FILE" > /dev/null
+    cat <<EOF | sudo tee "$SERVICE_FILE" >/dev/null
 [Unit]
 Description=SolarStorm Scout - Space Weather Bot (Docker)
 After=docker.service
@@ -311,6 +309,8 @@ Type=oneshot
 User=$ACTUAL_USER
 WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
+# A container left behind by a killed run would block the next one by name
+ExecStartPre=-/usr/bin/docker rm -f solarstorm-scout
 ExecStart=$EXEC_START
 # No ExecStop needed - --rm flag auto-removes container when it exits
 StandardOutput=append:$PROJECT_DIR/logs/solarstorm.log
@@ -327,7 +327,7 @@ else
         -e "s|%PYTHON_BIN%|$PYTHON_BIN|g" \
         -e "s|%PYTHON_PATH%|$PYTHON_PATH|g" \
         -e "s|%ENV_FILE%|$PROJECT_DIR/.env|g" \
-        "$PROJECT_DIR/systemd/solarstorm-scout.service.template" | sudo tee "$SERVICE_FILE" > /dev/null
+        "$PROJECT_DIR/systemd/solarstorm-scout.service.template" | sudo tee "$SERVICE_FILE" >/dev/null
 fi
 
 echo -e "${GREEN}✓${NC} Service file created"
@@ -347,8 +347,8 @@ for i in range(slots):
     times.append(f'{hour:02d}:{minute:02d}:00')
 print('\n'.join([f'OnCalendar=*-*-* {time}' for time in times]))
 ")
-    
-    cat << EOF | sudo tee "$TIMER_FILE" > /dev/null
+
+    cat <<EOF | sudo tee "$TIMER_FILE" >/dev/null
 [Unit]
 Description=SolarStorm Scout Timer - Posts space weather updates every $INTERVAL_HOURS hours
 Documentation=https://github.com/chiefgyk3d/solarstorm-scout
@@ -369,7 +369,7 @@ else
     # Relative timing with OnUnitActiveSec (original behavior)
     sed -e "s|%INTERVAL_HOURS%|$INTERVAL_HOURS|g" \
         -e "s|%INTERVAL_SECONDS%|$INTERVAL_SECONDS|g" \
-        "$PROJECT_DIR/systemd/solarstorm-scout.timer.template" | sudo tee "$TIMER_FILE" > /dev/null
+        "$PROJECT_DIR/systemd/solarstorm-scout.timer.template" | sudo tee "$TIMER_FILE" >/dev/null
 fi
 
 echo -e "${GREEN}✓${NC} Timer file created"
@@ -407,15 +407,15 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${GREEN}✓${NC} Rate limiter removed"
         fi
     fi
-    
+
     echo ""
     echo "Running test post..."
     sudo systemctl start solarstorm-scout.service
-    
+
     echo ""
     echo "Waiting for service to complete..."
     sleep 3
-    
+
     # Optionally show status
     read -p "Show service status? (y/N) " -n 1 -r
     echo

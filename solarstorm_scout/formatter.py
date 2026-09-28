@@ -7,13 +7,29 @@ Message Formatter for SolarStorm Scout
 Formats space weather data into social media posts.
 Bluesky: 300 char max per post
 Mastodon: 500 char max per post
+
+The thread is five data posts, numbered (1/5) to (5/5). When the forecaster
+has an on-air briefing for this run it opens the thread as one more post and
+the numbering shifts to /6; when it does not, the thread is exactly what it
+has always been. Numbering is worked out from what is actually in the thread,
+so neither case is a special one.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
+
+#: Character limits per network.
+CHAR_LIMITS = {'bluesky': 300, 'mastodon': 500}
+
+#: Header of the optional AI briefing post; the numbering is appended.
+BRIEFING_HEADER = "🎙️ SPACE WX BRIEFING"
+
+#: Room kept back when budgeting the briefing, so a stray double space or
+#: an emoji the model insisted on cannot push the post past the limit.
+BRIEFING_MARGIN = 6
 
 # Image URLs from NOAA (actual image files)
 DRAP_IMAGE_URL = (
@@ -45,75 +61,111 @@ def ensure_char_limit(text: str, limit: int) -> str:
     return text
 
 
+def char_limit_for(platform: str) -> int:
+    """Character limit for a network; unknown names get Bluesky's, the tighter one."""
+    return CHAR_LIMITS.get(platform.lower(), CHAR_LIMITS['bluesky'])
+
+
+def build_hashtags(include_hamradio: bool) -> str:
+    """The hashtag line every post ends with."""
+    hashtags = "#SolarStormScout"
+    if include_hamradio:
+        hashtags += " #HamRadio"
+    return hashtags
+
+
+def briefing_char_budget(platform: str, include_hamradio: bool = True) -> int:
+    """
+    Characters the forecaster may use for the briefing on this network.
+
+    The limit, minus the header and its numbering, the blank lines around
+    the body, the hashtag line, and a small safety margin.
+    """
+    header = f"{BRIEFING_HEADER} (1/6)\n\n"
+    footer = f"\n\n{build_hashtags(include_hamradio)}"
+    return char_limit_for(platform) - len(header) - len(footer) - BRIEFING_MARGIN
+
+
 def format_thread_posts(
-    data: dict, platform: str = "bluesky", include_hamradio: bool = True
+    data: dict,
+    platform: str = "bluesky",
+    include_hamradio: bool = True,
+    briefing: str | None = None,
 ) -> list[dict]:
     """
     Format space weather data into a thread of posts.
 
-    Creates 5 posts:
+    The data posts, in order:
     1. Solar Indices + NOAA Scales
     2. Band Conditions + Best Bands Now
     3. D-Region Absorption (with D-RAP image)
     4. Aurora Forecast (with aurora image)
     5. GOES Solar X-Ray Flux (with generated chart)
 
+    With a briefing, the AI weatherperson's read of the numbers opens the
+    thread as one more post and everything is numbered out of six.
+
     Args:
         data: Space weather data dictionary from spaceweather.fetch_space_weather_data()
         platform: 'bluesky' (300 chars) or 'mastodon' (500 chars)
         include_hamradio: Whether to include #HamRadio hashtag (limited to once per day)
+        briefing: Optional on-air briefing text, already fitted to
+            briefing_char_budget() for this platform. None means no briefing post.
 
     Returns:
         List of dicts with 'text', 'image_url', and 'alt_text' keys
     """
-    char_limit = 300 if platform == "bluesky" else 500
-    posts = []
+    char_limit = char_limit_for(platform)
 
-    # Post 1: Solar Indices + NOAA Scales
-    post1 = format_solar_indices_post(data, char_limit, include_hamradio)
-    posts.append({"text": post1, "image_url": None, "alt_text": ""})
+    # (formatter, image_url, alt_text) in thread order; numbering comes last
+    # so the count reflects what is really there.
+    parts = []
+    if briefing:
+        parts.append((
+            lambda i, n: format_briefing_post(briefing, i, n, char_limit, include_hamradio),
+            None,
+            "",
+        ))
+    parts.extend([
+        (lambda i, n: format_solar_indices_post(data, char_limit, include_hamradio, i, n),
+         None, ""),
+        (lambda i, n: format_band_conditions_post(data, char_limit, include_hamradio, i, n),
+         None, ""),
+        (lambda i, n: format_absorption_post(data, char_limit, include_hamradio, i, n),
+         DRAP_IMAGE_URL,
+         "D-Region Absorption Prediction map showing HF radio wave absorption"),
+        (lambda i, n: format_aurora_post(data, char_limit, include_hamradio, i, n),
+         AURORA_IMAGE_URL,
+         "Aurora oval forecast showing auroral activity in northern hemisphere"),
+        (lambda i, n: format_xray_post(data, char_limit, include_hamradio, i, n),
+         "GENERATE_CHART",  # Special marker to generate chart
+         "GOES Solar X-Ray Flux chart for past 6 hours"),
+    ])
 
-    # Post 2: Band Conditions
-    post2 = format_band_conditions_post(data, char_limit, include_hamradio)
-    posts.append({"text": post2, "image_url": None, "alt_text": ""})
+    total = len(parts)
+    return [
+        {"text": render(index, total), "image_url": image_url, "alt_text": alt_text}
+        for index, (render, image_url, alt_text) in enumerate(parts, start=1)
+    ]
 
-    # Post 3: D-Region Absorption (with D-RAP map)
-    post3 = format_absorption_post(data, char_limit, include_hamradio)
-    posts.append(
-        {
-            "text": post3,
-            "image_url": DRAP_IMAGE_URL,
-            "alt_text": "D-Region Absorption Prediction map showing HF radio wave absorption",
-        }
-    )
 
-    # Post 4: Aurora Forecast (with aurora oval)
-    post4 = format_aurora_post(data, char_limit, include_hamradio)
-    posts.append(
-        {
-            "text": post4,
-            "image_url": AURORA_IMAGE_URL,
-            "alt_text": "Aurora oval forecast showing auroral activity in northern hemisphere",
-        }
-    )
+def format_briefing_post(
+    briefing: str, index: int, total: int, char_limit: int, include_hamradio: bool = True
+) -> str:
+    """Format the optional opening post: the forecaster's on-air briefing."""
+    post = f"""{BRIEFING_HEADER} ({index}/{total})
 
-    # Post 5: GOES X-Ray Flux (with generated chart)
-    post5 = format_xray_post(data, char_limit, include_hamradio)
-    posts.append(
-        {
-            "text": post5,
-            "image_url": "GENERATE_CHART",  # Special marker to generate chart
-            "alt_text": "GOES Solar X-Ray Flux chart for past 6 hours",
-        }
-    )
+{briefing.strip()}
 
-    return posts
+{build_hashtags(include_hamradio)}"""
+
+    return ensure_char_limit(post, char_limit)
 
 
 def format_solar_indices_post(
-    data: dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True, index: int = 1, total: int = 5
 ) -> str:
-    """Format Post 1: Solar Indices + NOAA Scales."""
+    """Format the Solar Indices + NOAA Scales post."""
     sfi = data.get("solar_flux", "N/A")
     a_idx = data.get("a_index", "N/A")
     k_idx = data.get("k_index", "N/A")
@@ -127,12 +179,9 @@ def format_solar_indices_post(
     # Format absorption percentage
     abs_pct = f"{int(absorption * 100)}%" if isinstance(absorption, float) else "N/A"
 
-    # Build hashtags
-    hashtags = "#SolarStormScout"
-    if include_hamradio:
-        hashtags += " #HamRadio"
+    hashtags = build_hashtags(include_hamradio)
 
-    post = f"""☀️ SOLAR INDICES (1/5)
+    post = f"""☀️ SOLAR INDICES ({index}/{total})
 
 SFI: {sfi}
 A-index: {a_idx}
@@ -152,9 +201,9 @@ D-Layer: {abs_pct}
 
 
 def format_band_conditions_post(
-    data: dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True, index: int = 2, total: int = 5
 ) -> str:
-    """Format Post 2: Band Conditions."""
+    """Format the Band Conditions post."""
     bands = data.get("band_conditions", {})
     best_now = data.get("best_bands_now", "N/A")
     muf = data.get("muf_dx", "N/A")
@@ -184,12 +233,9 @@ def format_band_conditions_post(
     else:  # Mastodon - can fit more
         bands_text = "\n".join(band_lines)
 
-    # Build hashtags
-    hashtags = "#SolarStormScout"
-    if include_hamradio:
-        hashtags += " #HamRadio"
+    hashtags = build_hashtags(include_hamradio)
 
-    post = f"""📻 BAND CONDITIONS (2/5)
+    post = f"""📻 BAND CONDITIONS ({index}/{total})
 
 {bands_text}
 
@@ -203,13 +249,13 @@ Based on MUF={muf}MHz
 
 
 def format_absorption_post(
-    data: dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True, index: int = 3, total: int = 5
 ) -> str:
-    """Format Post 3: D-Region Absorption."""
+    """Format the D-Region Absorption post."""
     absorption = data.get("d_region_absorption", "N/A")
 
     # Get current time for context
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     hour = now.hour
 
     # Time-based guidance
@@ -234,12 +280,9 @@ def format_absorption_post(
     else:  # Mastodon - more detail
         helper = "Real-time HF absorption from solar X-rays\n🔴Red=High (HF challenging) 🟡Yellow=Moderate 🟢Green/Blue=Low (HF good)\nHigher absorption = lower frequencies work better"
 
-    # Build hashtags
-    hashtags = "#SolarStormScout"
-    if include_hamradio:
-        hashtags += " #HamRadio"
+    hashtags = build_hashtags(include_hamradio)
 
-    post = f"""📡 D-REGION ABSORPTION (3/5)
+    post = f"""📡 D-REGION ABSORPTION ({index}/{total})
 {absorption}
 
 ⏰ {time_note} - {now.strftime('%H:%M')}Z
@@ -253,9 +296,9 @@ def format_absorption_post(
 
 
 def format_aurora_post(
-    data: dict, char_limit: int, include_hamradio: bool = True
+    data: dict, char_limit: int, include_hamradio: bool = True, index: int = 4, total: int = 5
 ) -> str:
-    """Format Post 4: Aurora Forecast."""
+    """Format the Aurora Forecast post."""
     aurora_power = data.get("aurora_power", "N/A")
     k_idx = data.get("k_index", "N/A")
 
@@ -292,12 +335,9 @@ def format_aurora_post(
     else:  # Mastodon
         helper = "🟢Green=2m/6m scatter possible 🟡Yellow=Enhanced 🔴Red=Intense aurora\nPoint antennas north, use SSB/CW modes. Best during K≥4 activity."
 
-    # Build hashtags
-    hashtags = "#SolarStormScout"
-    if include_hamradio:
-        hashtags += " #HamRadio"
+    hashtags = build_hashtags(include_hamradio)
 
-    post = f"""🌌 AURORA FORECAST (4/5)
+    post = f"""🌌 AURORA FORECAST ({index}/{total})
 {aurora_desc}
 
 Power: {power_str}
@@ -313,8 +353,10 @@ K-index: {k_idx}
     return ensure_char_limit(post, char_limit)
 
 
-def format_xray_post(data: dict, char_limit: int, include_hamradio: bool = True) -> str:
-    """Format Post 5: GOES X-Ray Flux."""
+def format_xray_post(
+    data: dict, char_limit: int, include_hamradio: bool = True, index: int = 5, total: int = 5
+) -> str:
+    """Format the GOES X-Ray Flux post."""
     xray_class = data.get("xray_class", "N/A")
 
     # Impact assessment
@@ -337,7 +379,7 @@ def format_xray_post(data: dict, char_limit: int, include_hamradio: bool = True)
             impact = "⚪ QUIET"
             advice = "Background levels"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Condensed helper
     if char_limit == 300:  # Bluesky
@@ -347,12 +389,9 @@ def format_xray_post(data: dict, char_limit: int, include_hamradio: bool = True)
     else:  # Mastodon
         helper = "Flare Classes: X=Major (HF blackouts) M=Medium (regional HF degradation) C=Minor (slight absorption) B=Weak (normal)\nRed line=0.1-0.8nm Cyan=0.05-0.4nm. Spikes=flares causing radio blackouts. Higher flux=worse HF."
 
-    # Build hashtags
-    hashtags = "#SolarStormScout"
-    if include_hamradio:
-        hashtags += " #HamRadio"
+    hashtags = build_hashtags(include_hamradio)
 
-    post = f"""☀️ X-RAY FLUX (5/5)
+    post = f"""☀️ X-RAY FLUX ({index}/{total})
 Past 6hr
 
 Current: {xray_class}
@@ -380,7 +419,7 @@ def get_post_stats(posts: list[dict], platform: str) -> dict:
     Returns:
         Dict with stats
     """
-    limit = 300 if platform == "bluesky" else 500
+    limit = char_limit_for(platform)
     stats = {"platform": platform, "limit": limit, "count": len(posts), "posts": []}
 
     for i, post in enumerate(posts):

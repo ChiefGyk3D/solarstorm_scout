@@ -13,6 +13,7 @@ SolarStorm Scout fetches real-time space weather data from NOAA and posts thread
 - D-Region Absorption Predictions
 - Aurora Forecasts
 - GOES Solar X-Ray Flux
+- Optionally, an AI "radio weatherperson" briefing that reads the numbers out in plain language (local Ollama server by default)
 
 Perfect for amateur radio operators, space weather enthusiasts, and anyone interested in HF propagation!
 
@@ -31,16 +32,28 @@ This allows users who prefer not to see automated space weather updates to opt o
 
 - ✅ **Dual Platform Support**: Post to Bluesky and/or Mastodon
 - ✅ **Thread Support**: Posts 5-part threads with detailed information
+- ✅ **On-Air Briefing (optional)**: A local LLM opens the thread as a radio weatherperson; if anything about it is off, the thread goes out without it
 - ✅ **300 Character Limit**: Each post optimized for readability
 - ✅ **Configurable Interval**: Default 1.5 hours, fully customizable
 - ✅ **Multiple Deployment Options**: systemd timer, Docker, or manual
-- ✅ **Secrets Management**: Support for .env files and Doppler
+- ✅ **Secrets Management**: Support for .env files, Doppler, AWS Secrets Manager and Vault
 - ✅ **Real-time NOAA Data**: Direct from Space Weather Prediction Center
 - ✅ **Professional Formatting**: Clean, informative posts with hashtags
+- ✅ **Shared Core**: Built on [hypeman-social](https://github.com/ChiefGyk3D/hypeman), the same posting, LLM and config layer as Boon-Tube-Daemon, stream-daemon and Star-Daemon
 
 ## 📋 Thread Format
 
-Each update consists of 5 posts:
+Each update consists of 5 posts (6 when the on-air briefing is enabled and passes its checks; the numbering adjusts):
+
+### Opening Post (optional): On-Air Briefing
+
+When `LLM_ENABLE=true`, the thread opens with the forecaster's read of this run's numbers, in the voice of a radio weatherperson:
+
+> 🎙️ SPACE WX BRIEFING (1/6)
+>
+> Good evening, operators! The Sun is behaving itself with the solar flux at 145 and a quiet K-index of 2, so the bands are wide open. Point the beam at 20m and 17m for DX tonight.
+
+The briefing is written from the same data the rest of the thread shows, and it is checked before it goes out: any invented detail (a CME, a time, a sunspot number), any number that disagrees with the data (a K-index or flare class the feeds do not show), or a reply that will not fit means the post is dropped and the thread goes out as the five data posts below. See [On-Air Briefing (LLM)](#-on-air-briefing-llm).
 
 ### Post 1: Solar Indices
 <img src="media/solar_indices.png" alt="Solar Indices Post" width="500">
@@ -187,10 +200,11 @@ For manual Docker deployment without the installer:
 2. Create new app password: "SolarStorm Scout"
 3. Copy password to `.env` file:
    ```env
-   BLUESKY_ENABLED=true
+   BLUESKY_ENABLE_POSTING=true
    BLUESKY_HANDLE=yourhandle.bsky.social
    BLUESKY_APP_PASSWORD=your-app-password
    ```
+   (`BLUESKY_ENABLED=true`, the original name, still works.)
 
 #### Mastodon
 1. Log into your Mastodon instance
@@ -203,10 +217,46 @@ For manual Docker deployment without the installer:
 5. Click "Submit" to create the application
 6. Copy access token to `.env`:
    ```env
-   MASTODON_ENABLED=true
+   MASTODON_ENABLE_POSTING=true
    MASTODON_API_BASE_URL=https://your-instance.social
    MASTODON_ACCESS_TOKEN=your-access-token
    ```
+   (`MASTODON_ENABLED=true`, the original name, still works. The client id and secret are optional.)
+
+### 🎙️ On-Air Briefing (LLM)
+
+Off by default. Switch it on and point it at an Ollama server on your network, the same way the other daemons do:
+
+```env
+LLM_ENABLE=true
+LLM_PROVIDER=ollama
+LLM_OLLAMA_HOST=http://192.168.1.50   # your local LLM server
+LLM_OLLAMA_PORT=11434
+LLM_OLLAMA_MODEL=gemma3:4b
+```
+
+What happens each run:
+
+1. The forecaster hands the run's numbers (SFI, K/A-index, foF2 and MUF, absorption, band-by-band conditions, aurora power, X-ray class, NOAA scales) to the model with a prompt that asks for a short spoken-style briefing and forbids anything not in the report.
+2. The reply is cleaned (chatter, quotes, hashtags and URLs removed) and cut to a sentence end if it runs long.
+3. It is checked against the data: a stated K-index, A-index or SFI must match; a flare class must match the current X-ray class (negated mentions like "no M-class flares" are fine); an R/S/G scale must match. hypeman's guardrails then reject invented events (CMEs, solar wind, sunspot numbers, clock times, weekdays, arrival forecasts), hype words, and stray hashtags or links.
+4. One stricter retry if the first attempt failed. If that fails too, or the LLM is off or unreachable, **the thread is posted without the briefing** and looks exactly as it did before. The briefing can never block the data.
+
+Optional settings, read by hypeman-social (full reference in its [configuration docs](https://github.com/ChiefGyk3D/hypeman/blob/main/docs/CONFIGURATION.md)):
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `LLM_TEMPERATURE` | Sampling temperature; low keeps a small model honest | `0.3` |
+| `LLM_MAX_EMOJI_COUNT` | Reject replies with more emoji than this | `2` |
+| `LLM_ENABLE_PROFANITY_FILTER` | Reject profanity | `false` |
+| `LLM_FALLBACK_PROVIDER` | Opt-in failover, e.g. `gemini` (needs `pip install "hypeman-social[gemini]"` and `GEMINI_API_KEY`). Off means an Ollama outage costs the briefing, not your privacy | *(none)* |
+| `LLM_ENABLE_THINKING_MODE` | Headroom for reasoning models (qwen3, gemma4) | `false` |
+
+Preview what the model produces without posting anything:
+
+```bash
+python3 -m solarstorm_scout.demo   # includes the briefing when LLM_ENABLE=true
+```
 
 ### Doppler Secrets Manager (Optional)
 
@@ -223,7 +273,9 @@ Instead of `.env` files, use Doppler:
    DOPPLER_CONFIG=prd
    ```
 
-> **Note:** Both `DOPPLER_PROJECT` and `DOPPLER_CONFIG` environment variables are required when using Doppler secrets management.
+> **Note:** Both `DOPPLER_PROJECT` and `DOPPLER_CONFIG` environment variables are required when using Doppler secrets management. The project is fetched once per run and shared between settings and credentials.
+
+AWS Secrets Manager and HashiCorp Vault work too (`SECRETS_MANAGER=aws|vault`, install `hypeman-social[aws]` or `[vault]`); see the hypeman-social [configuration reference](https://github.com/ChiefGyk3D/hypeman/blob/main/docs/CONFIGURATION.md#secrets-managers).
 
 ## 🕐 Scheduling
 
@@ -292,12 +344,15 @@ solarstorm_scout/
 ├── solarstorm_scout/
 │   ├── __init__.py
 │   ├── main.py          # Main bot orchestrator
-│   ├── config.py        # Configuration & secrets
+│   ├── config.py        # Thin layer over hypeman-social's config/secrets
 │   ├── spaceweather.py  # NOAA data fetcher
-│   ├── formatter.py     # Message formatter
-│   ├── social.py        # Social media posters
+│   ├── formatter.py     # Message formatter (thread layout and numbering)
+│   ├── forecaster.py    # On-air briefing via hypeman-social's LLM manager
+│   ├── platforms.py     # hypeman's Bluesky/Mastodon, with images + token-only auth on hypeman 0.2.0
+│   ├── social.py        # Thread posting through hypeman-social's platforms
 │   ├── chart_renderer.py # GOES X-ray chart generator
 │   └── demo.py          # Preview tool
+├── tests/               # pytest suite (formatter, forecaster, posting flow)
 ├── scripts/
 │   ├── install-solarstorm.sh    # Automated installer (Python + Docker)
 │   └── uninstall-solarstorm.sh  # Uninstaller
@@ -318,6 +373,8 @@ solarstorm_scout/
 ├── .env.example
 ├── requirements.in          # Direct dependencies
 ├── requirements.txt         # Generated lock: every dependency pinned with hashes
+├── requirements-dev.in      # + pytest and ruff
+├── requirements-dev.txt     # Generated lock for development and CI
 ├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
@@ -328,7 +385,9 @@ solarstorm_scout/
 
 ### Dependency lock
 
-`requirements.in` lists the direct dependencies. `requirements.txt` is
+`requirements.in` lists the direct dependencies; Bluesky and Mastodon posting,
+the LLM layer and config/secrets come in through `hypeman-social` and its
+extras. `requirements.txt` is
 generated from it and pins every dependency, transitive ones included, to a
 version and its SHA-256 hashes. pip enters hash-checking mode by itself when it
 reads the file, so `pip install -r requirements.txt` verifies every download,
@@ -341,17 +400,14 @@ regenerates it for version bumps.
 ### Running Tests
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Install the development lock (runtime deps + pytest + ruff)
+pip install --require-hashes -r requirements-dev.txt
 
-# Run tests
+# Run tests (no network: platforms and the LLM are faked)
 pytest
 
-# Format code
-black solarstorm_scout/
-
-# Lint
-flake8 solarstorm_scout/
+# Lint (CI runs the same)
+ruff check solarstorm_scout/ tests/
 ```
 
 ## 🔍 Troubleshooting
@@ -440,6 +496,7 @@ Contributions welcome! Please:
 
 ## 📖 Related Projects
 
+- [hypeman-social](https://github.com/ChiefGyk3D/hypeman) - The shared posting, LLM and config core this bot is built on
 - [Penguin Overlord](https://github.com/chiefgyk3d/penguin-overlord) - Discord bot with HAM radio features
 - [NOAA Space Weather](https://www.swpc.noaa.gov/) - Official NOAA space weather site
 

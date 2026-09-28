@@ -1,7 +1,8 @@
 # Container release: build and test on every pull request; on main and on a
 # version tag, publish a multi-arch (amd64 + arm64) image to GHCR, signed with
 # cosign, with a syft SBOM and build provenance attached. The jobs live in
-# ChiefGyk3D/git-your-ship-together.
+# ChiefGyk3D/git-your-ship-together (container-release.yml; the
+# python-docker-release.yml name this used to call is its forwarding alias).
 #
 # Image: ghcr.io/chiefgyk3d/solarstorm_scout
 name: Release
@@ -23,7 +24,7 @@ permissions:
 
 jobs:
   container:
-    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/python-docker-release.yml@34536f91c5207effb397d065e6bb98cc348c6e2b # v1.5.0
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/container-release.yml@34536f91c5207effb397d065e6bb98cc348c6e2b # v1.5.0
     permissions:
       contents: read
       packages: write
@@ -38,7 +39,9 @@ jobs:
       # GHCR only: the old docker-build-publish.yml never published to
       # Docker Hub, so nothing is dropped by leaving `dockerhub` at its
       # default of false.
-      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      docker-test-command: |
+        docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer, forecaster; print('SolarStorm Scout imports successful')"
+        test "$(docker run --rm --entrypoint id "$IMAGE" -u)" != "0"
       egress-policy: block
       doppler-project: ci
       doppler-config: ci

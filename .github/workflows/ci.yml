@@ -1,6 +1,8 @@
-# Lint, import and dependency checks on Python 3.11-3.14, Docker build. The
-# jobs live in ChiefGyk3D/git-your-ship-together; this file only says what is
-# specific to SolarStorm Scout.
+# Lint, tests, import and dependency checks on Python 3.11-3.14, Docker build,
+# and shellcheck/shfmt over the installer scripts. The jobs live in
+# ChiefGyk3D/git-your-ship-together; this file only says what is specific to
+# SolarStorm Scout. Branch protection requires both gates: `ci / CI green`
+# and `shell / CI green`.
 name: CI
 
 on:
@@ -31,18 +33,33 @@ jobs:
       lint-python-version: "3.14"
       install-command: |
         python -m pip install --upgrade "pip>=25.3"
-        pip install --require-hashes -r requirements.txt
-      # There is no pytest suite yet. The old ci-tests.yml checked that every
-      # module imports and that the pinned requirements are mutually
-      # consistent; this is the same check, one line per module.
+        pip install --require-hashes -r requirements-dev.txt
+      # The pytest suite covers the thread layout, the forecaster's checks
+      # and the posting flow against fakes; the import and `pip check` lines
+      # are the original consistency check for the pinned requirements.
       test-command: |
-        python -c "import solarstorm_scout; from solarstorm_scout import config, spaceweather, formatter, social, chart_renderer, demo"
-        python -c "import aiohttp, atproto, mastodon, matplotlib"
+        python -c "import solarstorm_scout; from solarstorm_scout import config, spaceweather, formatter, social, chart_renderer, demo, forecaster, platforms"
+        python -c "import aiohttp, atproto, mastodon, matplotlib, ollama, hypeman_social"
         pip check
-      lint-command: ruff check solarstorm_scout/ --output-format=github
+        pytest tests/ -v
+      # The same ruff the dev lock pins, so a new ruff release cannot turn
+      # the lint gate red on its own.
+      lint-install-command: pip install "$(grep -E '^ruff==' requirements-dev.in)"
+      lint-command: ruff check solarstorm_scout/ tests/ --output-format=github
       dockerfile: Dockerfile
-      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      docker-test-command: |
+        docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer, forecaster; print('SolarStorm Scout imports successful')"
+        test "$(docker run --rm --entrypoint id "$IMAGE" -u)" != "0"
       egress-policy: block
       doppler-project: ci
       doppler-config: ci
       doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
+
+  shell:
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/bash-ci.yml@34536f91c5207effb397d065e6bb98cc348c6e2b # v1.5.0
+    permissions:
+      contents: read
+    with:
+      shfmt-args: -i 4 -ci
+      workflow-lint: false   # the ci job above already lints the workflow files
+      egress-policy: block

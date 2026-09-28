@@ -1,17 +1,19 @@
 # GitHub Actions Workflows
 
-Three thin callers. The jobs themselves live in
+Four thin callers. The jobs themselves live in
 [ChiefGyk3D/git-your-ship-together](https://github.com/ChiefGyk3D/git-your-ship-together),
 shared with Typo Sniper, Stream Daemon, Star Daemon and Boon Tube Daemon, so a
 pipeline fix or a new scan step lands once. Each file here says only what is
-specific to SolarStorm Scout: Python versions, the import check, the
-Dockerfile path, the Doppler project.
+specific to SolarStorm Scout: Python versions, the test and import checks, the
+Dockerfile path, the shell style, the Doppler project.
 
 | Workflow | Triggers | Calls | What it does |
 |---|---|---|---|
-| `ci.yml` | push to main, PRs, manual | `python-ci.yml` | Lint (ruff), import and `pip check` on Python 3.11–3.14, Docker build with an import check, one `CI green` gate job for branch protection |
-| `release.yml` | push to main, `v*.*.*` tags, PRs, weekly, manual | `python-docker-release.yml` | Build and test on every PR; on main and tags publish a multi-arch (amd64 + arm64) image to `ghcr.io/chiefgyk3d/solarstorm_scout`, signed with cosign, with a syft SBOM attached and SLSA provenance recorded; Trivy scan to the Security tab |
-| `security.yml` | push to main/develop, PRs, weekly, manual | `security.yml` | CodeQL, gitleaks over the full history, pip-audit, dependency review on PRs, Snyk |
+| `ci.yml` (`ci` job) | push to main, PRs, manual | `python-ci.yml` | Lint (ruff, at the version the dev lock pins), pytest suite, import and `pip check` on Python 3.11–3.14, Docker build with an import check and a non-root check, one `ci / CI green` gate job for branch protection |
+| `ci.yml` (`shell` job) | push to main, PRs, manual | `bash-ci.yml` | shellcheck and shfmt (`-i 4 -ci`) over the installer scripts; a second gate, `shell / CI green` |
+| `release.yml` | push to main, `v*.*.*` tags, PRs, weekly, manual | `container-release.yml` | Build and test on every PR; on main and tags publish a multi-arch (amd64 + arm64) image to `ghcr.io/chiefgyk3d/solarstorm_scout`, signed with cosign, with a syft SBOM attached and SLSA provenance recorded; Trivy scan to the Security tab |
+| `security.yml` | push to main/develop, PRs, weekly, manual | `security.yml` | CodeQL, gitleaks over the full history, pip-audit, dependency review on PRs, Snyk, OpenSSF Scorecard |
+| `dependabot-auto-merge.yml` | PRs | `dependabot-auto-merge.yml` | Queues a Dependabot bump to merge itself once the gates pass; a major bump is left for a person |
 
 ## Secrets: Doppler, not GitHub
 
@@ -69,6 +71,7 @@ and GitHub Actions, each with a seven-day cooldown on new releases.
 [![CI](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/ci.yml/badge.svg)](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/ci.yml)
 [![Release](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/release.yml/badge.svg)](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/release.yml)
 [![Security](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/security.yml/badge.svg)](https://github.com/ChiefGyk3D/solarstorm_scout/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ChiefGyk3D/solarstorm_scout/badge)](https://scorecard.dev/viewer/?uri=github.com/ChiefGyk3D/solarstorm_scout)
 ```
 
 ## What changed in the migration

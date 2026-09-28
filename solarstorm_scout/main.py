@@ -17,7 +17,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from solarstorm_scout.config import Config, setup_logging
+from solarstorm_scout import config
+from solarstorm_scout.forecaster import SpaceWeatherForecaster
 from solarstorm_scout.social import SocialMediaManager
 from solarstorm_scout.spaceweather import fetch_space_weather_data
 
@@ -133,9 +134,9 @@ def record_hamradio_usage():
 
 async def main():
     """Main bot execution."""
-    # Setup logging
-    log_level = Config().get("LOG_LEVEL", "INFO")
-    setup_logging(log_level)
+    # Load .env (and the bot's original key names), then logging
+    config.load()
+    config.setup_logging()
 
     logger.info("=" * 50)
     logger.info("🌞 SolarStorm Scout Starting")
@@ -146,44 +147,23 @@ async def main():
         logger.error("Exiting due to rate limit")
         sys.exit(1)
 
-    # Load configuration
-    config = Config()
-
-    # Validate configuration
-    if not config.validate_config():
-        logger.error("Configuration validation failed!")
-        sys.exit(1)
-
-    # Setup social media manager
+    # Social media platforms. hypeman reads each network's credentials
+    # itself (env, .env, Doppler, AWS, Vault) and authenticates.
     social = SocialMediaManager()
-
-    # Add platforms
-    if config.is_bluesky_enabled():
-        try:
-            handle, password = config.get_bluesky_config()
-            if social.add_bluesky(handle, password):
-                logger.info("✓ Bluesky platform added")
-            else:
-                logger.warning("✗ Failed to add Bluesky platform")
-        except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
-            logger.error(f"Error setting up Bluesky: {e}")
-
-    if config.is_mastodon_enabled():
-        try:
-            api_url, token, client_id, client_secret = config.get_mastodon_config()
-            if social.add_mastodon(api_url, token, client_id, client_secret):
-                logger.info("✓ Mastodon platform added")
-            else:
-                logger.warning("✗ Failed to add Mastodon platform")
-        except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
-            logger.error(f"Error setting up Mastodon: {e}")
-
-    # Check if any platforms were added
-    if social.get_platform_count() == 0:
+    if not social.configure_all():
         logger.error("No social media platforms configured successfully!")
         sys.exit(1)
 
     logger.info(f"Configured platforms: {', '.join(social.get_platform_names())}")
+
+    # The on-air forecaster (optional). LLM_ENABLE off means no briefing
+    # and nothing else changes; an LLM that is configured but down right
+    # now also means no briefing, and hypeman keeps retrying it.
+    forecaster = SpaceWeatherForecaster()
+    if forecaster.authenticate():
+        logger.info("✓ Forecaster ready; the thread opens with an AI briefing when one passes the checks")
+    else:
+        logger.info("⊘ Forecaster disabled (LLM_ENABLE is off); posting the data thread only")
 
     # Fetch space weather data
     logger.info("Fetching space weather data from NOAA...")
@@ -226,7 +206,11 @@ async def main():
     # Format posts (we'll post to each platform separately with platform-specific formatting)
     logger.info("Posting to social media...")
     try:
-        results = await social.post_to_all(data, include_hamradio=include_hamradio)
+        results = await social.post_to_all(
+            data,
+            include_hamradio=include_hamradio,
+            briefing_source=forecaster.briefing,
+        )
 
         # Log results
         success_count = sum(1 for v in results.values() if v)

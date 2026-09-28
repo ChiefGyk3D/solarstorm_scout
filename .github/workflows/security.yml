@@ -1,5 +1,6 @@
-# CodeQL, gitleaks, pip-audit, dependency review on pull requests, and Snyk
-# (token from Doppler). The jobs live in ChiefGyk3D/git-your-ship-together.
+# CodeQL, gitleaks, pip-audit, dependency review on pull requests, Snyk
+# (token from Doppler) and OpenSSF Scorecard. The jobs live in
+# ChiefGyk3D/git-your-ship-together.
 name: Security
 
 on:
@@ -29,6 +30,7 @@ jobs:
       codeql-queries: security-extended,security-and-quality
       pip-audit-requirements: requirements.txt
       snyk: true
+      scorecard: true
       egress-policy: block
       doppler-project: ci
       doppler-config: ci
