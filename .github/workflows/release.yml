@@ -38,7 +38,7 @@ jobs:
       # GHCR only: the old docker-build-publish.yml never published to
       # Docker Hub, so nothing is dropped by leaving `dockerhub` at its
       # default of false.
-      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer; print('SolarStorm Scout imports successful')"
+      docker-test-command: docker run --rm "$IMAGE" python -c "import solarstorm_scout; from solarstorm_scout import spaceweather, formatter, social, chart_renderer, forecaster; print('SolarStorm Scout imports successful')"
       egress-policy: block
       doppler-project: ci
       doppler-config: ci

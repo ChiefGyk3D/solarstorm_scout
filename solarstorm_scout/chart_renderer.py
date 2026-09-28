@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import aiohttp
 import matplotlib
@@ -60,7 +60,7 @@ async def plot_xray_flux(period: str = '6h') -> io.BytesIO | None:
         for entry in data:
             try:
                 time_tag = entry.get('time_tag', '')
-                dt = datetime.fromisoformat(time_tag.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(time_tag)  # Python 3.11+ reads the trailing Z
                 flux = float(entry.get('flux', 0))
                 energy = entry.get('energy', '')  # String like "0.05-0.4nm" or "0.1-0.8nm"
                 
@@ -117,7 +117,7 @@ async def plot_xray_flux(period: str = '6h') -> io.BytesIO | None:
         ax.text(timestamps[len(timestamps)//20], 1e-6, 'B', color='#6BCF7F', fontsize=10, va='bottom')
         
         # Format x-axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M', tz=timezone.utc))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M', tz=UTC))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         plt.xticks(rotation=45, ha='right')
         

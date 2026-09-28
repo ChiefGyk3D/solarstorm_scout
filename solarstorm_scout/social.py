@@ -3,22 +3,44 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 """
-Social Media Poster for SolarStorm Scout
-Supports Bluesky and Mastodon with threading and images.
+Social Media Poster for SolarStorm Scout, on hypeman-social's platforms.
+
+Bluesky and Mastodon used to be implemented here: login, rich-text facets,
+reply chains, image upload, each its own copy of code that Boon-Tube-Daemon,
+stream-daemon and Star-Daemon also carried. hypeman-social is that code,
+shared. What stays here is the bot's own business: turning the data into a
+thread, fetching the NOAA pictures once per run, rendering the X-ray chart,
+and walking each network through the thread post by post.
 """
 from __future__ import annotations
 
 import logging
-import re
+from collections.abc import Callable
 
 import aiohttp
-from atproto import Client, client_utils, models
-from mastodon import Mastodon
+from hypeman_social.social import BlueskyPlatform, MastodonPlatform, SocialPlatform
 
 from .chart_renderer import plot_xray_flux
-from .formatter import format_thread_posts
+from .config import enabled_platforms
+from .formatter import briefing_char_budget, format_thread_posts
 
 logger = logging.getLogger(__name__)
+
+#: hypeman platform classes for the networks this bot posts to. Each one
+#: reads its own configuration (BLUESKY_HANDLE, MASTODON_ACCESS_TOKEN, ...)
+#: through hypeman's config and secret chain.
+PLATFORM_CLASSES: dict[str, type[SocialPlatform]] = {
+    'bluesky': BlueskyPlatform,
+    'mastodon': MastodonPlatform,
+}
+
+#: Marker in a post's image_url meaning "render the X-ray chart" rather than
+#: "download this".
+GENERATE_CHART = "GENERATE_CHART"
+
+#: Something that produces the briefing for one network, given the data and
+#: the characters available, or None to leave it out.
+BriefingSource = Callable[[dict, int, str], "str | None"]
 
 
 async def download_image(
@@ -31,9 +53,10 @@ async def download_image(
         close_session = True
 
     try:
-        async with session.get(url, timeout=30) as resp:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status == 200:
                 return await resp.read()
+            logger.error(f"Image download returned HTTP {resp.status}: {url}")
     except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
         logger.error(f"Failed to download image from {url}: {e}")
     finally:
@@ -43,359 +66,171 @@ async def download_image(
     return None
 
 
-class BlueskyPoster:
-    """Bluesky social platform with threading and image support."""
+class ImageCache:
+    """
+    Pictures for this run, fetched or rendered once and reused per network.
 
-    def __init__(self, handle: str, app_password: str):
-        """
-        Initialize Bluesky poster.
+    Two networks used to mean two downloads of the same D-RAP map and two
+    renders of the same chart. A miss is remembered too, so a NOAA image
+    that is down is asked for once, not once per post.
+    """
 
-        Args:
-            handle: Bluesky handle (e.g., username.bsky.social)
-            app_password: App-specific password from Bluesky settings
-        """
-        self.handle = handle
-        self.app_password = app_password
-        self.client = None
-        self.authenticated = False
+    def __init__(self, session: aiohttp.ClientSession | None = None):
+        self.session = session
+        self._images: dict[str, bytes | None] = {}
 
-    def authenticate(self) -> bool:
-        """
-        Authenticate with Bluesky.
+    async def get(self, image_url: str) -> bytes | None:
+        if image_url in self._images:
+            return self._images[image_url]
 
-        Returns:
-            True if authentication successful
-        """
-        try:
-            self.client = Client()
-            self.client.login(self.handle, self.app_password)
-            self.authenticated = True
-            logger.info("✓ Bluesky authenticated with the configured BLUESKY_HANDLE")
-            return True
-        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
-            logger.error(f"✗ Bluesky authentication failed: {e}")
-            self.authenticated = False
-            return False
+        if image_url == GENERATE_CHART:
+            logger.info("Generating GOES X-ray flux chart...")
+            chart = await plot_xray_flux("6h")
+            data = chart.getvalue() if chart else None
+            if data is None:
+                logger.warning("Failed to generate X-ray chart")
+        else:
+            data = await download_image(image_url, self.session)
 
-    async def post_thread(
-        self, posts: list[dict], session: aiohttp.ClientSession | None = None
-    ) -> bool:
-        """
-        Post a thread to Bluesky with images.
-
-        Args:
-            posts: List of post dicts with 'text', 'image_url', and 'alt_text'
-            session: Optional aiohttp session for downloading images
-
-        Returns:
-            True if thread posted successfully
-        """
-        if not self.authenticated or not self.client:
-            logger.error("Not authenticated with Bluesky")
-            return False
-
-        try:
-            reply_to = None
-
-            for i, post_data in enumerate(posts):
-                message = post_data["text"]
-                image_url = post_data.get("image_url")
-                alt_text = post_data.get("alt_text", "")
-
-                # Use TextBuilder for rich text with hashtags
-                text_builder = client_utils.TextBuilder()
-
-                # Pattern for hashtags
-                hashtag_pattern = r"#\w+"
-                last_pos = 0
-
-                for match in re.finditer(hashtag_pattern, message):
-                    # Add text before hashtag
-                    if match.start() > last_pos:
-                        text_builder.text(message[last_pos : match.start()])
-
-                    # Add hashtag as tag
-                    hashtag = match.group()
-                    text_builder.tag(hashtag, hashtag[1:])  # Remove # for tag
-                    last_pos = match.end()
-
-                # Add remaining text
-                if last_pos < len(message):
-                    text_builder.text(message[last_pos:])
-
-                # Handle image
-                embed = None
-                if image_url:
-                    # Check if we need to generate chart or download image
-                    if image_url == "GENERATE_CHART":
-                        # Generate GOES X-ray chart
-                        logger.info("Generating GOES X-ray flux chart...")
-                        chart_buf = await plot_xray_flux("6h")
-                        if chart_buf:
-                            img_data = chart_buf.getvalue()
-                        else:
-                            img_data = None
-                            logger.warning("Failed to generate X-ray chart")
-                    else:
-                        # Download image from URL
-                        img_data = await download_image(image_url, session)
-
-                    if img_data:
-                        try:
-                            upload = self.client.upload_blob(img_data)
-                            embed = models.AppBskyEmbedImages.Main(
-                                images=[
-                                    models.AppBskyEmbedImages.Image(
-                                        alt=alt_text, image=upload.blob
-                                    )
-                                ]
-                            )
-                            logger.info(f"Added image to post {i+1}")
-                        except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
-                            logger.warning(
-                                f"Failed to upload image for post {i+1}: {e}"
-                            )
-
-                # Post with reply_to for threading
-                if reply_to:
-                    post = self.client.send_post(
-                        text_builder, reply_to=reply_to, embed=embed
-                    )
-                else:
-                    post = self.client.send_post(text_builder, embed=embed)
-
-                reply_to = models.AppBskyFeedPost.ReplyRef(
-                    parent=models.ComAtprotoRepoStrongRef.Main(
-                        cid=post.cid, uri=post.uri
-                    ),
-                    root=models.ComAtprotoRepoStrongRef.Main(
-                        cid=post.cid if not reply_to else reply_to.root.cid,
-                        uri=post.uri if not reply_to else reply_to.root.uri,
-                    ),
-                )
-
-                logger.info(f"Posted Bluesky message {i+1}/{len(posts)}")
-
-            logger.info(f"✓ Posted Bluesky thread ({len(posts)} posts)")
-            return True
-
-        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
-            logger.error(f"✗ Error posting Bluesky thread: {e}")
-            return False
-
-
-class MastodonPoster:
-    """Mastodon social platform with threading and image support."""
-
-    def __init__(
-        self,
-        api_base_url: str,
-        access_token: str,
-        client_id: str | None = None,
-        client_secret: str | None = None,
-    ):
-        """
-        Initialize Mastodon poster.
-
-        Args:
-            api_base_url: Mastodon instance URL
-            access_token: Access token for authentication
-            client_id: OAuth client ID (optional)
-            client_secret: OAuth client secret (optional)
-        """
-        self.api_base_url = api_base_url
-        self.access_token = access_token
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.client = None
-        self.authenticated = False
-
-    def authenticate(self) -> bool:
-        """
-        Authenticate with Mastodon.
-
-        Returns:
-            True if authentication successful
-        """
-        try:
-            if self.client_id and self.client_secret:
-                self.client = Mastodon(
-                    client_id=self.client_id,
-                    client_secret=self.client_secret,
-                    access_token=self.access_token,
-                    api_base_url=self.api_base_url,
-                )
-            else:
-                # Simplified authentication with just access token
-                self.client = Mastodon(
-                    access_token=self.access_token, api_base_url=self.api_base_url
-                )
-
-            # Verify credentials
-            self.client.account_verify_credentials()
-            self.authenticated = True
-            logger.info("✓ Mastodon authenticated at the configured MASTODON_API_BASE_URL")
-            return True
-
-        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
-            logger.error(f"✗ Mastodon authentication failed: {e}")
-            self.authenticated = False
-            return False
-
-    async def post_thread(
-        self, posts: list[dict], session: aiohttp.ClientSession | None = None
-    ) -> bool:
-        """
-        Post a thread to Mastodon with images.
-
-        Args:
-            posts: List of post dicts with 'text', 'image_url', and 'alt_text'
-            session: Optional aiohttp session for downloading images
-
-        Returns:
-            True if thread posted successfully
-        """
-        if not self.authenticated or not self.client:
-            logger.error("Not authenticated with Mastodon")
-            return False
-
-        try:
-            reply_to_id = None
-
-            for i, post_data in enumerate(posts):
-                message = post_data["text"]
-                image_url = post_data.get("image_url")
-                alt_text = post_data.get("alt_text", "")
-
-                # Handle image
-                media_ids = []
-                if image_url:
-                    # Check if we need to generate chart or download image
-                    if image_url == "GENERATE_CHART":
-                        # Generate GOES X-ray chart
-                        logger.info("Generating GOES X-ray flux chart...")
-                        chart_buf = await plot_xray_flux("6h")
-                        if chart_buf:
-                            img_data = chart_buf.getvalue()
-                        else:
-                            img_data = None
-                            logger.warning("Failed to generate X-ray chart")
-                    else:
-                        # Download image from URL
-                        img_data = await download_image(image_url, session)
-
-                    if img_data:
-                        try:
-                            # Write to temp file for Mastodon.py
-                            import os
-                            import tempfile
-
-                            with tempfile.NamedTemporaryFile(
-                                delete=False, suffix=".png"
-                            ) as tmp:
-                                tmp.write(img_data)
-                                tmp_path = tmp.name
-
-                            media = self.client.media_post(
-                                tmp_path, description=alt_text
-                            )
-                            media_ids.append(media["id"])
-                            logger.info(f"Added image to post {i+1}")
-
-                            # Clean up temp file
-                            os.unlink(tmp_path)
-                        except Exception as e:  # noqa: BLE001  # post goes out without the image; error is logged
-                            logger.warning(
-                                f"Failed to upload image for post {i+1}: {e}"
-                            )
-
-                # Post with in_reply_to_id for threading
-                status = self.client.status_post(
-                    message,
-                    in_reply_to_id=reply_to_id,
-                    media_ids=media_ids if media_ids else None,
-                    visibility="public",
-                )
-
-                reply_to_id = status["id"]
-                logger.info(f"Posted Mastodon message {i+1}/{len(posts)}")
-
-            logger.info(f"✓ Posted Mastodon thread ({len(posts)} posts)")
-            return True
-
-        except Exception as e:  # noqa: BLE001  # reported as False to the caller; error is logged
-            logger.error(f"✗ Error posting Mastodon thread: {e}")
-            return False
+        self._images[image_url] = data
+        return data
 
 
 class SocialMediaManager:
-    """Manages posting to multiple social media platforms."""
+    """Manages posting the thread to every configured network."""
 
     def __init__(self):
-        self.platforms = []
+        self.platforms: list[tuple[str, SocialPlatform]] = []
 
-    def add_bluesky(self, handle: str, app_password: str) -> bool:
+    def add_platform(self, name: str, platform: SocialPlatform | None = None) -> bool:
         """
-        Add Bluesky platform.
+        Authenticate one network and keep it if that works.
+
+        Args:
+            name: 'bluesky' or 'mastodon'.
+            platform: An instance to use instead of constructing one; for tests.
 
         Returns:
-            True if added and authenticated successfully
+            True if the platform authenticated and will be posted to.
         """
-        poster = BlueskyPoster(handle, app_password)
-        if poster.authenticate():
-            self.platforms.append(("Bluesky", poster))
+        key = name.lower()
+        if platform is None:
+            cls = PLATFORM_CLASSES.get(key)
+            if cls is None:
+                logger.error(f"✗ Unknown platform: {name}")
+                return False
+            platform = cls()
+
+        if platform.authenticate():
+            self.platforms.append((key, platform))
             return True
         return False
 
-    def add_mastodon(
+    def configure_all(self) -> list[str]:
+        """
+        Bring up every network that is switched on in configuration.
+
+        Returns:
+            Names of the platforms that authenticated.
+        """
+        enabled = enabled_platforms()
+        if not enabled:
+            logger.error(
+                "✗ No social media platforms enabled! Set BLUESKY_ENABLE_POSTING=true "
+                "and/or MASTODON_ENABLE_POSTING=true"
+            )
+            return []
+
+        for name in enabled:
+            if self.add_platform(name):
+                logger.info(f"✓ {name.capitalize()} platform added")
+            else:
+                logger.warning(f"✗ Failed to add {name.capitalize()} platform")
+
+        return self.get_platform_names()
+
+    async def post_thread(
         self,
-        api_base_url: str,
-        access_token: str,
-        client_id: str | None = None,
-        client_secret: str | None = None,
+        platform: SocialPlatform,
+        posts: list[dict],
+        images: ImageCache | None = None,
     ) -> bool:
         """
-        Add Mastodon platform.
+        Post a thread to one network, each post replying to the one before.
+
+        Args:
+            platform: An authenticated hypeman platform.
+            posts: Dicts with 'text', 'image_url' and 'alt_text', in order.
+            images: Shared picture cache for this run.
 
         Returns:
-            True if added and authenticated successfully
+            True if every post went out. A failure part-way leaves the
+            earlier posts up and reports False; the next scheduled run
+            posts a fresh thread.
         """
-        poster = MastodonPoster(api_base_url, access_token, client_id, client_secret)
-        if poster.authenticate():
-            self.platforms.append(("Mastodon", poster))
-            return True
-        return False
+        images = images or ImageCache()
+        reply_to = None
+
+        for index, post_data in enumerate(posts, start=1):
+            stream_data = None
+            image_url = post_data.get("image_url")
+            if image_url:
+                data = await images.get(image_url)
+                if data:
+                    stream_data = {"images": [{"data": data, "alt": post_data.get("alt_text", "")}]}
+                else:
+                    logger.warning(f"Posting {platform.name} message {index} without its image")
+
+            post_id = platform.safe_post(
+                post_data["text"], reply_to_id=reply_to, stream_data=stream_data
+            )
+            if not post_id:
+                logger.error(f"✗ {platform.name} message {index}/{len(posts)} failed; thread incomplete")
+                return False
+
+            reply_to = post_id
+            logger.info(f"Posted {platform.name} message {index}/{len(posts)}")
+
+        logger.info(f"✓ Posted {platform.name} thread ({len(posts)} posts)")
+        return True
 
     async def post_to_all(
         self,
         data: dict,
         session: aiohttp.ClientSession | None = None,
         include_hamradio: bool = True,
+        briefing_source: BriefingSource | None = None,
     ) -> dict:
         """
-        Post thread to all configured platforms.
+        Post the thread to all configured platforms.
 
         Args:
             data: Space weather data dict
-            session: Optional aiohttp session
+            session: Optional aiohttp session for the image downloads
             include_hamradio: Whether to include #HamRadio hashtag
+            briefing_source: Produces the on-air briefing for a network, or
+                None. Called as (data, max_chars, platform); a None result
+                means the thread goes out without a briefing post.
 
         Returns:
             Dict with platform names as keys and success status as values
         """
         results = {}
+        images = ImageCache(session)
 
-        for platform_name, poster in self.platforms:
+        for key, platform in self.platforms:
             try:
-                # Format posts for this platform
-                platform = "bluesky" if platform_name == "Bluesky" else "mastodon"
-                posts = format_thread_posts(data, platform, include_hamradio)
+                briefing = None
+                if briefing_source is not None:
+                    briefing = briefing_source(
+                        data, briefing_char_budget(key, include_hamradio), key
+                    )
 
-                success = await poster.post_thread(posts, session)
-                results[platform_name] = success
+                posts = format_thread_posts(data, key, include_hamradio, briefing)
+                results[platform.name] = await self.post_thread(platform, posts, images)
             except Exception as e:  # noqa: BLE001  # one platform failing must not block the other; error is logged
-                logger.error(f"Error posting to {platform_name}: {e}")
-                results[platform_name] = False
+                logger.error(f"Error posting to {platform.name}: {e}")
+                results[platform.name] = False
 
         return results
 
@@ -405,4 +240,4 @@ class SocialMediaManager:
 
     def get_platform_names(self) -> list[str]:
         """Get list of configured platform names."""
-        return [name for name, _ in self.platforms]
+        return [platform.name for _, platform in self.platforms]

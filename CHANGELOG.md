@@ -5,6 +5,53 @@ All notable changes to SolarStorm Scout will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-28
+
+### Added
+- **On-air briefing (optional).** With `LLM_ENABLE=true`, a local LLM (Ollama
+  by default; Gemini if configured) opens each thread with a short "radio
+  weatherperson" read of the run's numbers. The reply is cleaned, fitted to
+  the post, checked against the data (a stated K-index, A-index, SFI, flare
+  class or NOAA scale must match what the feeds show; negated mentions like
+  "no M-class flares" are fine) and run through hypeman's guardrails, which
+  reject invented events (CMEs, solar wind, sunspot numbers, clock times,
+  weekdays, arrival forecasts), hype words, hashtags and links. One stricter
+  retry; then the thread goes out without the briefing. Nothing about the
+  briefing can fail or delay the data posts. Same `LLM_*` settings as
+  Boon-Tube-Daemon and stream-daemon.
+- Thread numbering follows what is in the thread: `(1/5)…(5/5)` as before,
+  `(1/6)…(6/6)` when the briefing opens it.
+- `python3 -m solarstorm_scout.demo` previews the briefing too when the LLM
+  is enabled, so a model or prompt can be judged before it goes on the air.
+- A pytest suite (formatter, forecaster, posting flow, config) run in CI;
+  `requirements-dev.txt` locks pytest and ruff alongside the runtime deps.
+
+### Changed
+- **Built on hypeman-social** ([ChiefGyk3D/hypeman](https://github.com/ChiefGyk3D/hypeman)),
+  the shared core behind Boon-Tube-Daemon, stream-daemon and Star-Daemon.
+  Bluesky and Mastodon posting, the LLM layer, configuration and secrets
+  (Doppler, and now AWS Secrets Manager and Vault) and logging come from the
+  library; the bot's own copies of the Bluesky/Mastodon posters and the
+  Config class are gone. Image posts use hypeman 0.3.0's `images`
+  attachment, added for this bot. A fix in the library now reaches all
+  four daemons.
+- `BLUESKY_ENABLE_POSTING` / `MASTODON_ENABLE_POSTING` are the switch names
+  hypeman reads; the original `BLUESKY_ENABLED` / `MASTODON_ENABLED` keep
+  working and are translated at startup.
+- Mastodon posts use the account's default visibility instead of forcing
+  `public`. Accounts default to public, so nothing changes unless you set
+  otherwise.
+- The NOAA pictures and the X-ray chart are fetched or rendered once per
+  run and reused for every network, instead of once per network.
+- Logging goes through hypeman: `LOG_LEVEL` as before, timestamps left to
+  journald under systemd, `LOG_FILE` / `LOG_DEDUPE_SECONDS` available.
+- Doppler is read once per run rather than once per setting.
+- Python 3.11+ (already required by numpy; the packaging metadata now says so).
+
+### Removed
+- `solarstorm_scout.config.Config`; use `solarstorm_scout.config` helpers or
+  `hypeman_social.config` directly.
+
 ## [1.0.0] - 2024-11-14
 
 ### Added
@@ -59,4 +106,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.1.0]: https://github.com/chiefgyk3d/solarstorm_scout/releases/tag/v1.1.0
 [1.0.0]: https://github.com/chiefgyk3d/solarstorm-scout/releases/tag/v1.0.0

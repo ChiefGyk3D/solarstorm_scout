@@ -7,13 +7,19 @@ Shows what the posts will look like without actually posting to social media.
 import asyncio
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from solarstorm_scout.formatter import format_thread_posts, get_post_stats
+from solarstorm_scout import config
+from solarstorm_scout.forecaster import SpaceWeatherForecaster
+from solarstorm_scout.formatter import (
+    briefing_char_budget,
+    format_thread_posts,
+    get_post_stats,
+)
 from solarstorm_scout.spaceweather import fetch_space_weather_data
 
 # Setup simple logging
@@ -32,7 +38,7 @@ def print_banner():
     print()
 
 
-def print_post(post_num: int, post_data: dict, platform: str, limit: int):
+def print_post(post_num: int, post_data: dict, platform: str, limit: int, total: int = 5):
     """Print a single post preview."""
     text = post_data['text']
     image_url = post_data.get('image_url')
@@ -41,7 +47,7 @@ def print_post(post_num: int, post_data: dict, platform: str, limit: int):
     remaining = limit - length
     
     # Header
-    print(f"\n┌─ POST {post_num}/5 ".ljust(70, '─') + "┐")
+    print(f"\n┌─ POST {post_num}/{total} ".ljust(70, '─') + "┐")
     print(f"│ Platform: {platform.ljust(55)} │")
     print(f"│ Length: {length}/{limit} chars ({{remaining}} remaining)".format(remaining=remaining).ljust(68) + " │")
     
@@ -67,7 +73,17 @@ async def main():
     
     print("Fetching live space weather data from NOAA...")
     print()
-    
+
+    # Same configuration the bot reads. With LLM_ENABLE=true the preview
+    # includes the forecaster's briefing, so a new model or prompt can be
+    # judged here before it goes on the air.
+    config.load()
+    forecaster = SpaceWeatherForecaster()
+    llm_on = forecaster.authenticate()
+    if llm_on:
+        print("🎙️  LLM enabled: the preview includes the on-air briefing")
+        print()
+
     try:
         # Fetch real data
         data = await fetch_space_weather_data()
@@ -81,28 +97,32 @@ async def main():
         print(f"   D-Region: {data.get('d_region_absorption', 'N/A')}")
         print(f"   Aurora: {data.get('aurora_power', 'N/A')} GW")
         print(f"   X-Ray: {data.get('xray_class', 'N/A')}")
-        print(f"   Timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        print(f"   Timestamp: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         
         # Format posts for both platforms
         print("\n" + "=" * 70)
         print("BLUESKY POSTS (300 character limit)")
         print("=" * 70)
         
-        bluesky_posts = format_thread_posts(data, 'bluesky')
+        briefing = forecaster.briefing(data, briefing_char_budget('bluesky'), 'bluesky')
+        if llm_on and not briefing:
+            print("⚠ No usable briefing from the LLM; the thread would go out without one")
+        bluesky_posts = format_thread_posts(data, 'bluesky', briefing=briefing)
         bluesky_stats = get_post_stats(bluesky_posts, 'bluesky')
-        
+
         for i, post_data in enumerate(bluesky_posts):
-            print_post(i + 1, post_data, 'Bluesky', 300)
-        
+            print_post(i + 1, post_data, 'Bluesky', 300, len(bluesky_posts))
+
         print("\n" + "=" * 70)
         print("MASTODON POSTS (500 character limit)")
         print("=" * 70)
-        
-        mastodon_posts = format_thread_posts(data, 'mastodon')
+
+        briefing = forecaster.briefing(data, briefing_char_budget('mastodon'), 'mastodon')
+        mastodon_posts = format_thread_posts(data, 'mastodon', briefing=briefing)
         mastodon_stats = get_post_stats(mastodon_posts, 'mastodon')
-        
+
         for i, post_data in enumerate(mastodon_posts):
-            print_post(i + 1, post_data, 'Mastodon', 500)
+            print_post(i + 1, post_data, 'Mastodon', 500, len(mastodon_posts))
         
         # Statistics
         print("\n" + "=" * 70)
@@ -125,19 +145,16 @@ async def main():
         print("\n" + "=" * 70)
         print("IMAGE SOURCES")
         print("=" * 70)
-        print("\nPost 1 (Solar Indices):")
-        print("  (no image)")
-        print("\nPost 2 (Band Conditions):")
-        print("  (no image)")
-        print("\nPost 3 (D-Region Absorption):")
-        print("  🗺️  " + bluesky_posts[2]['image_url'])
-        print("\nPost 4 (Aurora):")
-        print("  🌌 " + bluesky_posts[3]['image_url'])
-        print("\nPost 5 (X-Ray):")
-        if bluesky_posts[4]['image_url'] == 'GENERATE_CHART':
-            print("  📊 Generated chart from NOAA JSON data (matplotlib)")
-        else:
-            print("  ☀️  " + bluesky_posts[4]['image_url'])
+        for i, post_data in enumerate(bluesky_posts, start=1):
+            title = post_data['text'].split('\n', 1)[0]
+            image_url = post_data.get('image_url')
+            print(f"\nPost {i} ({title}):")
+            if not image_url:
+                print("  (no image)")
+            elif image_url == 'GENERATE_CHART':
+                print("  📊 Generated chart from NOAA JSON data (matplotlib)")
+            else:
+                print("  🖼️  " + image_url)
         
         print("\n" + "=" * 70)
         print("✅ DEMO COMPLETE - Posts formatted correctly!")

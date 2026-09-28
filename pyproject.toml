@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solarstorm_scout"
-version = "1.0.0"
+version = "1.1.0"
 description = "Space Weather Social Media Bot - Posts HF propagation updates to Bluesky and Mastodon"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "MPL-2.0"}
 authors = [
     {name = "SolarStorm Scout Team"}
@@ -18,25 +18,28 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL-2.0)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
 
+# Bluesky/Mastodon posting, LLM generation, config and secrets come from
+# hypeman-social, the core shared with Boon-Tube-Daemon, stream-daemon and
+# Star-Daemon. requirements.txt is the hash-locked install; this list is the
+# floor for anyone installing the package directly.
 dependencies = [
+    "hypeman-social[bluesky,mastodon,ollama]>=0.3.0,<0.4",
     "aiohttp>=3.9.0",
-    "atproto>=0.0.40",
-    "Mastodon.py>=1.8.0",
     "python-dotenv>=1.0.0",
+    "matplotlib>=3.8.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
-doppler = ["dopplersdk>=1.0.0"]
-dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "black>=26.5.1", "flake8>=7.3.0"]
+doppler = ["hypeman-social[doppler]>=0.3.0,<0.4"]
+gemini = ["hypeman-social[gemini]>=0.3.0,<0.4"]
+dev = ["pytest>=9.1.1", "ruff>=0.15.0"]
 
 [project.scripts]
 solarstorm_scout = "solarstorm_scout.main:main"

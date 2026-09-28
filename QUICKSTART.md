@@ -4,7 +4,7 @@ Get posting space weather updates in under 5 minutes!
 
 ## Prerequisites Checklist
 
-- [ ] Python 3.8+ installed
+- [ ] Python 3.11+ installed
 - [ ] Bluesky account OR Mastodon account (or both!)
 - [ ] Linux system (for systemd) OR Docker installed
 
@@ -45,11 +45,11 @@ nano .env
 ```env
 LOG_LEVEL=INFO
 
-BLUESKY_ENABLED=true
+BLUESKY_ENABLE_POSTING=true
 BLUESKY_HANDLE=yourhandle.bsky.social
 BLUESKY_APP_PASSWORD=your-app-password-here
 
-MASTODON_ENABLED=false
+MASTODON_ENABLE_POSTING=false
 ```
 
 ### Step 3: Choose Installation Method
@@ -125,7 +125,7 @@ docker logs solarstorm-scheduler
 - **Mastodon**: Verify access token is correct and has `read` + `write` scopes
 
 ### "No platforms configured"
-- Check `.env` file has `BLUESKY_ENABLED=true` or `MASTODON_ENABLED=true`
+- Check `.env` file has `BLUESKY_ENABLE_POSTING=true` or `MASTODON_ENABLE_POSTING=true`
 - Verify credentials are filled in (no empty values)
 
 ### Service won't start
@@ -162,11 +162,11 @@ docker-compose restart
 
 Edit `.env`:
 ```env
-BLUESKY_ENABLED=true
+BLUESKY_ENABLE_POSTING=true
 BLUESKY_HANDLE=yourhandle.bsky.social
 BLUESKY_APP_PASSWORD=your-password
 
-MASTODON_ENABLED=true
+MASTODON_ENABLE_POSTING=true
 MASTODON_API_BASE_URL=https://mastodon.social
 MASTODON_ACCESS_TOKEN=your-token
 ```
