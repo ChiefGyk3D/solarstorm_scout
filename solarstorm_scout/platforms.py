@@ -22,16 +22,14 @@ import logging
 import re
 
 from hypeman_social.config import get_bool_config, get_config
+from hypeman_social.social import base as _base
 from hypeman_social.social import bluesky as _bluesky
 from hypeman_social.social import mastodon as _mastodon
 from hypeman_social.social.base import platform_secret
 
-try:  # hypeman >= 0.3.0 attaches images and accepts token-only Mastodon itself
-    from hypeman_social.social.base import attached_images  # noqa: F401
-
-    LIBRARY_HAS_IMAGES = True
-except ImportError:
-    LIBRARY_HAS_IMAGES = False
+#: hypeman >= 0.3.0 attaches images and accepts token-only Mastodon itself;
+#: the resolver it exports is the marker for that.
+LIBRARY_HAS_IMAGES = hasattr(_base, 'attached_images')
 
 logger = logging.getLogger(__name__)
 
