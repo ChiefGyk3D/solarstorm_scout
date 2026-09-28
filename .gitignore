@@ -57,6 +57,7 @@ htmlcov/
 
 # Docker
 *.dockerfile.swp
+docker-compose.override.yml
 
 # Anti-spam tracking
 .last_run
