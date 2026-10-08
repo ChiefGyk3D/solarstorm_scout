@@ -9,10 +9,14 @@ LABEL description="Space Weather Social Media Bot - Posts HF propagation updates
 WORKDIR /app
 
 # Install system dependencies and upgrade
+# Apt versions are left unpinned on purpose: the base image is pinned by digest,
+# and Debian removes superseded package versions, so exact apt pins would break
+# the build at every security update.
+# hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-    ca-certificates=20250419 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
