@@ -9,6 +9,10 @@ LABEL description="Space Weather Social Media Bot - Posts HF propagation updates
 WORKDIR /app
 
 # Install system dependencies and upgrade
+# Apt versions are left unpinned on purpose: the base image is pinned by digest,
+# and Debian removes superseded package versions, so exact apt pins would break
+# the build at every security update.
+# hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
@@ -33,11 +37,14 @@ COPY solarstorm_scout/ ./solarstorm_scout/
 # Create logs directory
 RUN mkdir -p /app/logs
 
-# Create non-root user
-RUN useradd -m -u 1000 solarstorm && \
+# Dedicated non-root user. UID/GID 1000 matches the owner of the host's
+# existing ./logs bind mount, so no chown is needed. /app/logs holds the
+# run-tracking files the bot writes.
+RUN groupadd --gid 1000 solarstorm && \
+    useradd --uid 1000 --gid 1000 --create-home --shell /usr/sbin/nologin solarstorm && \
     chown -R solarstorm:solarstorm /app
 
-USER solarstorm
+USER 1000:1000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
