@@ -256,8 +256,8 @@ elif [ "$DEPLOYMENT_MODE" = "1" ]; then
     source "$VENV_DIR/bin/activate"
 
     echo "Installing dependencies..."
-    pip install --upgrade pip >/dev/null 2>&1
-    pip install -r "$PROJECT_DIR/requirements.txt"
+    # requirements.txt pins every package with hashes; --require-hashes makes pip refuse anything else
+    pip install --require-hashes -r "$PROJECT_DIR/requirements.txt"
     echo -e "${GREEN}✓${NC} Dependencies installed"
 
     PYTHON_BIN="$VENV_DIR/bin/python3"
@@ -265,7 +265,7 @@ elif [ "$DEPLOYMENT_MODE" = "1" ]; then
 else
     echo ""
     echo "Installing dependencies to system Python..."
-    pip3 install --user -r "$PROJECT_DIR/requirements.txt"
+    pip3 install --user --require-hashes -r "$PROJECT_DIR/requirements.txt"
     echo -e "${GREEN}✓${NC} Dependencies installed"
 
     PYTHON_BIN="python3"
