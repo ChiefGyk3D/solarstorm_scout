@@ -5,7 +5,12 @@ from types import SimpleNamespace
 import pytest
 
 from solarstorm_scout import platforms as module
-from solarstorm_scout.platforms import BlueskyPlatform, MastodonPlatform, images_in, sniff_image_mime
+from solarstorm_scout.platforms import (
+    BlueskyPlatform,
+    MastodonPlatform,
+    images_in,
+    sniff_image_mime,
+)
 
 PNG = b'\x89PNG\r\n\x1a\n' + b'chart'
 
