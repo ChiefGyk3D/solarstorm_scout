@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   container:
-    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/container-release.yml@7501cb3fa19d83d0e0a131cb040e7c4da32a9504 # v1.28.0
+    uses: ChiefGyk3D/git-your-ship-together/.github/workflows/container-release.yml@9d6825dd4e0e4d524fca3733f416437bbd7851e1 # v1.31.0
     permissions:
       contents: read
       packages: write
@@ -36,6 +36,10 @@ jobs:
     with:
       dockerfile: Dockerfile
       push: ${{ github.event_name != 'pull_request' }}
+      # Since v1.31.0 publishing is an allow-list; these keep main, tags,
+      # the weekly schedule and manual runs publishing as before.
+      allowed-publish-events: push,schedule,workflow_dispatch
+      require-tag-ref: false
       # GHCR only: the old docker-build-publish.yml never published to
       # Docker Hub, so nothing is dropped by leaving `dockerhub` at its
       # default of false.
