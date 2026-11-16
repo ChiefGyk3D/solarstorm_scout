@@ -17,6 +17,11 @@
 # solarstorm_scout/platforms.py carries them.
 hypeman-social[bluesky,mastodon,ollama,doppler]>=0.2.0,<0.4
 
+# GHSA-vvf4-9x63-8xvv: dnspython (pulled in transitively via hypeman-social ->
+# atproto) has a DoS fix in 2.9.2; pinned explicitly so the floor doesn't
+# depend on whatever atproto's own range happens to resolve to.
+dnspython>=2.9.2,<3
+
 # NOAA fetches and image downloads
 aiohttp==3.14.5
 python-dotenv==1.2.4
