@@ -100,7 +100,7 @@ The briefing is written from the same data the rest of the thread shows, and it 
 
 ### Prerequisites
 
-- Python 3.11 or higher (3.10 not supported due to numpy requirements)
+- Python 3.11.5 or higher (3.10 not supported due to numpy requirements)
 - Active Bluesky and/or Mastodon account
 - Linux system with systemd (for systemd installation)
 - Docker (for Docker installation)
