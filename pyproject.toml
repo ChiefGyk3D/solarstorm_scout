@@ -7,7 +7,7 @@ name = "solarstorm_scout"
 version = "1.1.0"
 description = "Space Weather Social Media Bot - Posts HF propagation updates to Bluesky and Mastodon"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11.5"
 license = {text = "MPL-2.0"}
 authors = [
     {name = "SolarStorm Scout Team"}
